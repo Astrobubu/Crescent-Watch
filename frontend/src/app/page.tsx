@@ -427,18 +427,7 @@ export default function Home() {
       }
     });
 
-    // Criterion badge (bottom right in footer)
-    ctx.font = '14px Inter, sans-serif';
-    if (isRTL) ctx.font = '14px Cairo, sans-serif'; // Use Cairo for Arabic
-    ctx.fillStyle = '#71717a';
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
 
-    const badgeText = isRTL
-      ? `معيار ${criterionText}`
-      : `${criterionText} Criterion`;
-
-    ctx.fillText(badgeText, W - 24, H - footerHeight / 2);
 
     // Convert to blob and download
     canvas.toBlob((blob) => {
