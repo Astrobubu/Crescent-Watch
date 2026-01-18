@@ -71,19 +71,7 @@ export function Header() {
                             </p>
                         </div>
 
-                        <div className="text-center">
-                            <h4 className="text-sm font-medium text-foreground mb-2">{t('about.credits')}</h4>
-                            <ul className="text-sm text-muted-foreground space-y-2 flex flex-col items-center">
-                                <li className="flex items-center gap-2">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />
-                                    <span>{t('about.credit_skyfield')}</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />
-                                    <span>{t('about.credit_d3')}</span>
-                                </li>
-                            </ul>
-                        </div>
+                        {/* Credits section removed */}
 
                         <div>
                             <h4 className="text-sm font-medium text-foreground mb-2 text-center">{t('about.development')}</h4>
