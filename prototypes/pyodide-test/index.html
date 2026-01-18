@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pyodide + Skyfield Test</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #ffd700, #ff8c00);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+        }
+
+        .status-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .progress-container {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            height: 24px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            border-radius: 10px;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        .log {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        .log-entry {
+            margin: 4px 0;
+            padding: 2px 0;
+        }
+
+        .log-entry.info {
+            color: #64B5F6;
+        }
+
+        .log-entry.success {
+            color: #81C784;
+        }
+
+        .log-entry.warning {
+            color: #FFD54F;
+        }
+
+        .log-entry.error {
+            color: #E57373;
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .results-table th,
+        .results-table td {
+            padding: 10px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .results-table th {
+            background: rgba(255, 215, 0, 0.2);
+            color: #ffd700;
+        }
+
+        .results-table tr:nth-child(even) {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .zone-A {
+            background: rgba(0, 200, 0, 0.3);
+        }
+
+        .zone-B {
+            background: rgba(200, 200, 0, 0.3);
+        }
+
+        .zone-C {
+            background: rgba(255, 165, 0, 0.3);
+        }
+
+        .zone-D {
+            background: rgba(200, 0, 0, 0.3);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #ffd700, #ff8c00);
+            color: #000;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(255, 215, 0, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-box {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #ffd700;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🌙 Pyodide + Skyfield Prototype</h1>
+        <p class="subtitle">Running Python astronomy calculations in your browser</p>
+
+        <div class="status-card">
+            <h3>📦 Download Progress</h3>
+            <div class="progress-container">
+                <div class="progress-bar" id="progressBar" style="width: 0%">0%</div>
+            </div>
+            <div class="log" id="log"></div>
+        </div>
+
+        <div style="text-align: center; margin: 20px 0;">
+            <button class="btn" id="runBtn" disabled>▶️ Run Calculation</button>
+        </div>
+
+        <div class="stats hidden" id="stats">
+            <div class="stat-box">
+                <div class="stat-value" id="downloadSize">-</div>
+                <div class="stat-label">Download Size</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="loadTime">-</div>
+                <div class="stat-label">Load Time</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="calcTime">-</div>
+                <div class="stat-label">Calc Time</div>
+            </div>
+        </div>
+
+        <div id="resultsContainer" class="hidden">
+            <h3 style="margin: 30px 0 15px;">📊 Results (30°E Longitude Line)</h3>
+            <table class="results-table" id="resultsTable">
+                <thead>
+                    <tr>
+                        <th>Lat</th>
+                        <th>Sunset (UTC)</th>
+                        <th>Moon Alt</th>
+                        <th>Elongation</th>
+                        <th>W' (arcmin)</th>
+                        <th>Odeh Zone</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Logging utility
+        const logEl = document.getElementById('log');
+        const progressBar = document.getElementById('progressBar');
+
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function setProgress(percent, text) {
+            progressBar.style.width = `${percent}%`;
+            progressBar.textContent = text || `${percent}%`;
+        }
+
+        // Track download sizes
+        let totalDownloadBytes = 0;
+        const startTime = performance.now();
+
+        async function loadPyodide() {
+            log('Starting Pyodide initialization...', 'info');
+            setProgress(5, 'Loading Pyodide core...');
+
+            // Load Pyodide from CDN
+            const pyodideScript = document.createElement('script');
+            pyodideScript.src = 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js';
+            document.head.appendChild(pyodideScript);
+
+            await new Promise((resolve, reject) => {
+                pyodideScript.onload = resolve;
+                pyodideScript.onerror = reject;
+            });
+
+            log('Pyodide script loaded, initializing...', 'info');
+            setProgress(15, 'Initializing Python runtime...');
+
+            // Initialize Pyodide
+            const pyodide = await loadPyodide({
+                indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/'
+            });
+
+            log('Python runtime ready!', 'success');
+            setProgress(25, 'Installing NumPy...');
+
+            // Install micropip and numpy
+            await pyodide.loadPackage('micropip');
+            log('micropip loaded', 'info');
+
+            setProgress(35, 'Loading NumPy (this is the big one)...');
+            await pyodide.loadPackage('numpy');
+            log('NumPy loaded!', 'success');
+            totalDownloadBytes += 7 * 1024 * 1024; // ~7MB for numpy
+
+            setProgress(50, 'Installing Skyfield...');
+
+            // Try to install skyfield via micropip
+            try {
+                const micropip = pyodide.pyimport('micropip');
+                await micropip.install('skyfield');
+                log('Skyfield installed!', 'success');
+                totalDownloadBytes += 2 * 1024 * 1024; // ~2MB for skyfield
+            } catch (err) {
+                log(`Skyfield install failed: ${err.message}`, 'error');
+                log('Trying jplephem only...', 'warning');
+
+                try {
+                    const micropip = pyodide.pyimport('micropip');
+                    await micropip.install('jplephem');
+                    log('jplephem installed', 'success');
+                } catch (err2) {
+                    log(`jplephem also failed: ${err2.message}`, 'error');
+                }
+            }
+
+            setProgress(70, 'Downloading ephemeris data (16MB)...');
+            log('Fetching de421.bsp ephemeris file...', 'info');
+
+            // Fetch the ephemeris file
+            try {
+                const ephResponse = await fetch('https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/a_old_versions/de421.bsp');
+                if (!ephResponse.ok) {
+                    throw new Error(`HTTP ${ephResponse.status}`);
+                }
+                const ephData = await ephResponse.arrayBuffer();
+                totalDownloadBytes += ephData.byteLength;
+                log(`Ephemeris downloaded: ${(ephData.byteLength / 1024 / 1024).toFixed(1)}MB`, 'success');
+
+                // Write to Pyodide filesystem
+                pyodide.FS.writeFile('/de421.bsp', new Uint8Array(ephData));
+                log('Ephemeris written to virtual filesystem', 'success');
+            } catch (err) {
+                log(`Ephemeris download failed: ${err.message}`, 'error');
+                log('Will use simplified calculations instead', 'warning');
+            }
+
+            setProgress(90, 'Ready!');
+
+            const loadTime = ((performance.now() - startTime) / 1000).toFixed(1);
+            document.getElementById('loadTime').textContent = loadTime + 's';
+            document.getElementById('downloadSize').textContent = (totalDownloadBytes / 1024 / 1024).toFixed(1) + 'MB';
+            document.getElementById('stats').classList.remove('hidden');
+
+            log(`Total load time: ${loadTime}s`, 'success');
+            log(`Total download: ${(totalDownloadBytes / 1024 / 1024).toFixed(1)}MB`, 'info');
+
+            setProgress(100, 'Ready to calculate!');
+
+            return pyodide;
+        }
+
+        async function runCalculation(pyodide) {
+            log('Starting visibility calculation...', 'info');
+            const calcStart = performance.now();
+
+            // Python code for calculation
+            const pythonCode = `
+import numpy as np
+import json
+
+# Check if skyfield is available
+try:
+    from skyfield.api import load, wgs84
+    from skyfield import almanac
+    SKYFIELD_AVAILABLE = True
+    print("Skyfield is available!")
+except ImportError as e:
+    SKYFIELD_AVAILABLE = False
+    print(f"Skyfield not available: {e}")
+
+# Test parameters
+TEST_DATE = (2026, 2, 18)
+TEST_LON = 30.0
+LATITUDES = list(range(-60, 65, 5))
+
+results = []
+
+if SKYFIELD_AVAILABLE:
+    # Load ephemeris
+    try:
+        eph = load('/de421.bsp')
+        ts = load.timescale()
+        SUN = eph['sun']
+        MOON = eph['moon']
+        EARTH = eph['earth']
+        print("Ephemeris loaded successfully!")
+        
+        from datetime import datetime, timezone, timedelta
+        
+        for lat in LATITUDES:
+            try:
+                observer = EARTH + wgs84.latlon(lat, TEST_LON)
+                
+                # Find sunset
+                base_dt = datetime(TEST_DATE[0], TEST_DATE[1], TEST_DATE[2], 12, 0, 0, tzinfo=timezone.utc)
+                t_start = ts.from_datetime(base_dt - timedelta(hours=12))
+                t_end = ts.from_datetime(base_dt + timedelta(hours=36))
+                
+                t_sunsets, _ = almanac.find_settings(observer, SUN, t_start, t_end)
+                
+                if len(t_sunsets) == 0:
+                    results.append({"lat": lat, "error": "no_sunset"})
+                    continue
+                
+                t_sunset = t_sunsets[0]
+                
+                # Get positions
+                sun_app = observer.at(t_sunset).observe(SUN).apparent()
+                moon_app = observer.at(t_sunset).observe(MOON).apparent()
+                
+                sun_alt, sun_az, _ = sun_app.altaz()
+                moon_alt, moon_az, _ = moon_app.altaz()
+                elongation = sun_app.separation_from(moon_app)
+                moon_dist = observer.at(t_sunset).observe(MOON).distance().km
+                
+                # Calculate width
+                arcl = elongation.degrees
+                earth_radius = 6378.137
+                sin_pi = min(earth_radius / moon_dist, 1.0)
+                pi_rad = np.arcsin(sin_pi)
+                h_rad = np.radians(moon_alt.degrees)
+                sd_rad = 0.27245 * pi_rad
+                sd_prime_rad = sd_rad * (1.0 + np.sin(h_rad) * np.sin(pi_rad))
+                arcl_rad = np.radians(arcl)
+                w_prime = np.degrees(sd_prime_rad * (1.0 - np.cos(arcl_rad))) * 60.0
+                
+                arcv = moon_alt.degrees - sun_alt.degrees
+                
+                # Odeh criterion
+                curve = (-0.1018 * (w_prime**3) + 0.7319 * (w_prime**2) - 6.3226 * w_prime + 7.1651)
+                v = arcv - curve
+                
+                if v >= 5.65:
+                    zone = 'A'
+                elif v >= 2.0:
+                    zone = 'B'
+                elif v >= -0.96:
+                    zone = 'C'
+                else:
+                    zone = 'D'
+                
+                results.append({
+                    "lat": lat,
+                    "sunset": t_sunset.utc_iso(),
+                    "moon_alt": round(moon_alt.degrees, 2),
+                    "elongation": round(arcl, 2),
+                    "w_prime": round(w_prime, 3),
+                    "odeh_v": round(v, 2),
+                    "zone": zone
+                })
+                
+            except Exception as e:
+                results.append({"lat": lat, "error": str(e)})
+                
+    except Exception as e:
+        print(f"Error loading ephemeris: {e}")
+        results = [{"error": f"Ephemeris load failed: {e}"}]
+else:
+    # Fallback: simplified calculation without Skyfield
+    print("Using simplified calculations (no Skyfield)")
+    for lat in LATITUDES:
+        results.append({
+            "lat": lat,
+            "error": "skyfield_unavailable"
+        })
+
+json.dumps(results)
+`;
+
+            try {
+                const resultJson = await pyodide.runPythonAsync(pythonCode);
+                const results = JSON.parse(resultJson);
+
+                const calcTime = ((performance.now() - calcStart) / 1000).toFixed(2);
+                document.getElementById('calcTime').textContent = calcTime + 's';
+                log(`Calculation completed in ${calcTime}s`, 'success');
+
+                // Display results
+                displayResults(results);
+
+            } catch (err) {
+                log(`Calculation error: ${err.message}`, 'error');
+                console.error(err);
+            }
+        }
+
+        function displayResults(results) {
+            const tbody = document.getElementById('resultsBody');
+            tbody.innerHTML = '';
+
+            for (const r of results) {
+                const row = document.createElement('tr');
+
+                if (r.error) {
+                    row.innerHTML = `
+                        <td>${r.lat}°</td>
+                        <td colspan="5" style="color: #E57373;">${r.error}</td>
+                    `;
+                } else {
+                    row.innerHTML = `
+                        <td>${r.lat}°</td>
+                        <td>${r.sunset || '-'}</td>
+                        <td>${r.moon_alt}°</td>
+                        <td>${r.elongation}°</td>
+                        <td>${r.w_prime}'</td>
+                        <td class="zone-${r.zone}">${r.zone}</td>
+                    `;
+                }
+                tbody.appendChild(row);
+            }
+
+            document.getElementById('resultsContainer').classList.remove('hidden');
+        }
+
+        // Initialize
+        let pyodideInstance = null;
+
+        (async () => {
+            try {
+                pyodideInstance = await loadPyodide();
+                document.getElementById('runBtn').disabled = false;
+                log('Ready! Click "Run Calculation" to test.', 'success');
+            } catch (err) {
+                log(`Failed to load Pyodide: ${err.message}`, 'error');
+                console.error(err);
+            }
+        })();
+
+        document.getElementById('runBtn').addEventListener('click', async () => {
+            if (pyodideInstance) {
+                document.getElementById('runBtn').disabled = true;
+                await runCalculation(pyodideInstance);
+                document.getElementById('runBtn').disabled = false;
+            }
+        });
+    </script>
+</body>
+
+</html>

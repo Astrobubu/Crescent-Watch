@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prototype Comparison</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #ffd700, #00bcd4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .card h3 {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .badge-js {
+            background: rgba(0, 188, 212, 0.2);
+            color: #00bcd4;
+        }
+
+        .badge-baseline {
+            background: rgba(156, 39, 176, 0.2);
+            color: #ce93d8;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th,
+        td {
+            padding: 8px 6px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        th {
+            background: rgba(255, 255, 255, 0.05);
+            font-weight: 600;
+        }
+
+        .zone-A {
+            background: rgba(0, 200, 0, 0.3);
+        }
+
+        .zone-B {
+            background: rgba(200, 200, 0, 0.3);
+        }
+
+        .zone-C {
+            background: rgba(255, 165, 0, 0.3);
+        }
+
+        .zone-D {
+            background: rgba(200, 0, 0, 0.3);
+        }
+
+        .comparison-section {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #ffd700, #00bcd4);
+            color: #000;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(255, 215, 0, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .summary-box {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .summary-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .summary-value.good {
+            color: #4CAF50;
+        }
+
+        .summary-value.warn {
+            color: #FFC107;
+        }
+
+        .summary-value.bad {
+            color: #f44336;
+        }
+
+        .summary-label {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        .diff-good {
+            color: #4CAF50;
+        }
+
+        .diff-bad {
+            color: #f44336;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .log {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 100px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🌙 Prototype Comparison</h1>
+        <p class="subtitle">Comparing JavaScript Astronomy Engine vs Skyfield Baseline (Python)</p>
+
+        <div class="log" id="log">Loading...</div>
+
+        <div class="summary" id="summary">
+            <div class="summary-box">
+                <div class="summary-value" id="baselineSize">16 MB</div>
+                <div class="summary-label">Skyfield + de421.bsp</div>
+            </div>
+            <div class="summary-box">
+                <div class="summary-value good" id="jsSize">~200 KB</div>
+                <div class="summary-label">JS Astronomy Engine</div>
+            </div>
+            <div class="summary-box">
+                <div class="summary-value" id="calcTime">-</div>
+                <div class="summary-label">JS Calc Time</div>
+            </div>
+            <div class="summary-box">
+                <div class="summary-value" id="accuracy">-</div>
+                <div class="summary-label">Zone Match Rate</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn" id="loadBtn" disabled>📥 Loading Library...</button>
+        </div>
+
+        <div class="cards" id="dataCards" style="display: none;">
+            <div class="card">
+                <h3><span class="badge badge-baseline">BASELINE</span> Skyfield (Reference)</h3>
+                <div id="baselineTable">Loading...</div>
+            </div>
+            <div class="card">
+                <h3><span class="badge badge-js">JS</span> Astronomy Engine</h3>
+                <div id="jsTable">Loading...</div>
+            </div>
+        </div>
+
+        <div class="comparison-section" id="comparisonSection" style="display: none;">
+            <h3>📊 Accuracy Comparison (JS vs Baseline)</h3>
+            <p style="color: #888; margin: 10px 0;">How closely does the JavaScript library match Skyfield's
+                high-precision calculations?</p>
+            <table id="comparisonTable">
+                <thead>
+                    <tr>
+                        <th>Lat</th>
+                        <th>Baseline Moon Alt</th>
+                        <th>JS Moon Alt</th>
+                        <th>Δ Alt</th>
+                        <th>Baseline Zone</th>
+                        <th>JS Zone</th>
+                        <th>Match?</th>
+                    </tr>
+                </thead>
+                <tbody id="comparisonBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const DEG2RAD = Math.PI / 180;
+        const RAD2DEG = 180 / Math.PI;
+
+        let baselineData = null;
+        let jsData = null;
+        let astronomyLoaded = false;
+
+        const logEl = document.getElementById('log');
+        function log(msg) {
+            logEl.textContent = msg;
+        }
+
+        // Load Astronomy Engine dynamically
+        async function loadAstronomyLibrary() {
+            log('Loading Astronomy Engine library...');
+
+            const cdnUrls = [
+                'https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.js',
+                'https://unpkg.com/astronomy-engine@2.1.19/astronomy.browser.js',
+                'https://cdn.jsdelivr.net/npm/astronomy-engine/astronomy.browser.js'
+            ];
+
+            for (const url of cdnUrls) {
+                try {
+                    log(`Trying CDN: ${url.split('/')[2]}...`);
+
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                    const code = await response.text();
+                    const script = document.createElement('script');
+                    script.textContent = code;
+                    document.head.appendChild(script);
+
+                    if (typeof Astronomy !== 'undefined') {
+                        log('✅ Astronomy Engine loaded! Click "Run Comparison" to start.');
+                        astronomyLoaded = true;
+                        document.getElementById('loadBtn').disabled = false;
+                        document.getElementById('loadBtn').textContent = '▶️ Run Comparison';
+                        return true;
+                    }
+                } catch (err) {
+                    log(`Failed: ${err.message}, trying next...`);
+                }
+            }
+
+            log('❌ Failed to load Astronomy library from all CDNs');
+            return false;
+        }
+
+        // JS Astronomy functions
+        function findSunset(lat, lon, year, month, day) {
+            const observer = new Astronomy.Observer(lat, lon, 0);
+            const startDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+            const startTime = Astronomy.MakeTime(startDate);
+            return Astronomy.SearchRiseSet(Astronomy.Body.Sun, observer, -1, startTime, 1);
+        }
+
+        function getMoonSunData(lat, lon, time) {
+            const observer = new Astronomy.Observer(lat, lon, 0);
+
+            const sunEquator = Astronomy.Equator(Astronomy.Body.Sun, time, observer, true, true);
+            const sunHorizon = Astronomy.Horizon(time, observer, sunEquator.ra, sunEquator.dec, 'normal');
+
+            const moonEquator = Astronomy.Equator(Astronomy.Body.Moon, time, observer, true, true);
+            const moonHorizon = Astronomy.Horizon(time, observer, moonEquator.ra, moonEquator.dec, 'normal');
+
+            const elongation = Astronomy.AngleBetween(
+                Astronomy.GeoVector(Astronomy.Body.Sun, time, true),
+                Astronomy.GeoVector(Astronomy.Body.Moon, time, true)
+            );
+
+            const moonGeo = Astronomy.GeoVector(Astronomy.Body.Moon, time, true);
+            const moonDistAU = Math.sqrt(moonGeo.x * moonGeo.x + moonGeo.y * moonGeo.y + moonGeo.z * moonGeo.z);
+            const moonDistKm = moonDistAU * 149597870.7;
+
+            return {
+                sunAlt: sunHorizon.altitude,
+                moonAlt: moonHorizon.altitude,
+                elongation: elongation,
+                moonDistKm: moonDistKm
+            };
+        }
+
+        function calcCrescentWidth(arclDeg, moonAltDeg, distKm) {
+            const EARTH_RADIUS = 6378.137;
+            const sinPi = Math.min(EARTH_RADIUS / distKm, 1.0);
+            const piRad = Math.asin(sinPi);
+            const hRad = moonAltDeg * DEG2RAD;
+            const sdRad = 0.27245 * piRad;
+            const sdPrimeRad = sdRad * (1.0 + Math.sin(hRad) * Math.sin(piRad));
+            const arclRad = arclDeg * DEG2RAD;
+            const wPrimeRad = sdPrimeRad * (1.0 - Math.cos(arclRad));
+            return wPrimeRad * RAD2DEG * 60.0;
+        }
+
+        function odehCriterion(arcv, wArcmin) {
+            const curve = -0.1018 * Math.pow(wArcmin, 3) + 0.7319 * Math.pow(wArcmin, 2) - 6.3226 * wArcmin + 7.1651;
+            const v = arcv - curve;
+
+            if (v >= 5.65) return { v, zone: 'A' };
+            if (v >= 2.0) return { v, zone: 'B' };
+            if (v >= -0.96) return { v, zone: 'C' };
+            return { v, zone: 'D' };
+        }
+
+        function runJSCalculation() {
+            const TEST_DATE = { year: 2026, month: 2, day: 18 };
+            const TEST_LON = 30.0;
+            const results = [];
+
+            const calcStart = performance.now();
+
+            for (let lat = -60; lat <= 60; lat += 5) {
+                try {
+                    const sunset = findSunset(lat, TEST_LON, TEST_DATE.year, TEST_DATE.month, TEST_DATE.day);
+                    if (!sunset) {
+                        results.push({ lat, error: 'no_sunset' });
+                        continue;
+                    }
+
+                    const data = getMoonSunData(lat, TEST_LON, sunset);
+                    const arcv = data.moonAlt - data.sunAlt;
+                    const wPrime = calcCrescentWidth(data.elongation, data.moonAlt, data.moonDistKm);
+                    const odeh = odehCriterion(arcv, wPrime);
+
+                    results.push({
+                        lat,
+                        moonAlt: data.moonAlt,
+                        elongation: data.elongation,
+                        wPrime: wPrime,
+                        zone: odeh.zone
+                    });
+                } catch (err) {
+                    results.push({ lat, error: err.message });
+                }
+            }
+
+            const calcTime = (performance.now() - calcStart).toFixed(0);
+            document.getElementById('calcTime').textContent = calcTime + 'ms';
+
+            return results;
+        }
+
+        function renderTable(data, containerId, fields) {
+            const container = document.getElementById(containerId);
+            if (!data || data.length === 0) {
+                container.innerHTML = '<p style="color: #888;">No data</p>';
+                return;
+            }
+
+            let html = '<table><thead><tr>';
+            for (const f of fields) {
+                html += `<th>${f.label}</th>`;
+            }
+            html += '</tr></thead><tbody>';
+
+            for (const row of data) {
+                html += '<tr>';
+                if (row.error) {
+                    html += `<td>${row.lat}°</td><td colspan="${fields.length - 1}" style="color:#E57373;">${row.error}</td>`;
+                } else {
+                    for (const f of fields) {
+                        const val = row[f.key];
+                        if (f.key === 'zone' || f.key === 'odeh_zone') {
+                            html += `<td class="zone-${val}">${val}</td>`;
+                        } else if (typeof val === 'number') {
+                            html += `<td>${val.toFixed(f.decimals || 2)}</td>`;
+                        } else {
+                            html += `<td>${val || '-'}</td>`;
+                        }
+                    }
+                }
+                html += '</tr>';
+            }
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        function runComparison(baseline, js) {
+            const tbody = document.getElementById('comparisonBody');
+            tbody.innerHTML = '';
+
+            let matchCount = 0;
+            let totalAltDiff = 0;
+            let count = 0;
+
+            for (const b of baseline) {
+                const j = js.find(r => r.lat === b.lat);
+                if (!j || b.error || j.error) continue;
+
+                const bMoonAlt = b.moon_alt;
+                const jMoonAlt = j.moonAlt;
+                const altDiff = Math.abs(bMoonAlt - jMoonAlt);
+                totalAltDiff += altDiff;
+                count++;
+
+                const bZone = b.odeh_zone;
+                const jZone = j.zone;
+                const match = bZone === jZone;
+                if (match) matchCount++;
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${b.lat}°</td>
+                    <td>${bMoonAlt.toFixed(3)}°</td>
+                    <td>${jMoonAlt.toFixed(3)}°</td>
+                    <td class="${altDiff < 0.1 ? 'diff-good' : altDiff < 0.5 ? '' : 'diff-bad'}">${altDiff.toFixed(3)}°</td>
+                    <td class="zone-${bZone}">${bZone}</td>
+                    <td class="zone-${jZone}">${jZone}</td>
+                    <td style="color: ${match ? '#4CAF50' : '#f44336'}">${match ? '✓' : '✗'}</td>
+                `;
+                tbody.appendChild(row);
+            }
+
+            // Update accuracy summary
+            const avgDiff = (totalAltDiff / count).toFixed(3);
+            const matchRate = (matchCount / count * 100).toFixed(0);
+            const accuracyEl = document.getElementById('accuracy');
+            accuracyEl.textContent = `${matchRate}%`;
+            accuracyEl.className = 'summary-value ' + (parseInt(matchRate) >= 90 ? 'good' : parseInt(matchRate) >= 70 ? 'warn' : 'bad');
+
+            log(`✅ Comparison complete! Zone match rate: ${matchRate}%, Avg altitude diff: ${avgDiff}°`);
+
+            document.getElementById('comparisonSection').style.display = 'block';
+        }
+
+        async function loadAllData() {
+            document.getElementById('loadBtn').textContent = '⏳ Running...';
+            document.getElementById('loadBtn').disabled = true;
+
+            log('Loading baseline data...');
+
+            // Load baseline JSON
+            try {
+                const response = await fetch('baseline/baseline.json');
+                baselineData = await response.json();
+
+                renderTable(baselineData.points, 'baselineTable', [
+                    { key: 'lat', label: 'Lat' },
+                    { key: 'moon_alt', label: 'Moon Alt', decimals: 2 },
+                    { key: 'elongation', label: 'Elong', decimals: 2 },
+                    { key: 'w_prime', label: "W'", decimals: 3 },
+                    { key: 'odeh_zone', label: 'Zone' }
+                ]);
+            } catch (err) {
+                document.getElementById('baselineTable').innerHTML = `<p style="color:#E57373;">Error: ${err.message}</p>`;
+                log(`❌ Failed to load baseline: ${err.message}`);
+                return;
+            }
+
+            log('Running JS calculations...');
+
+            // Run JS calculation
+            jsData = runJSCalculation();
+            renderTable(jsData, 'jsTable', [
+                { key: 'lat', label: 'Lat' },
+                { key: 'moonAlt', label: 'Moon Alt', decimals: 2 },
+                { key: 'elongation', label: 'Elong', decimals: 2 },
+                { key: 'wPrime', label: "W'", decimals: 3 },
+                { key: 'zone', label: 'Zone' }
+            ]);
+
+            // Show cards
+            document.getElementById('dataCards').style.display = 'grid';
+
+            // Run comparison
+            if (baselineData && jsData) {
+                runComparison(baselineData.points, jsData);
+            }
+
+            document.getElementById('loadBtn').textContent = '✓ Complete';
+        }
+
+        // Initialize
+        loadAstronomyLibrary();
+
+        document.getElementById('loadBtn').addEventListener('click', loadAllData);
+    </script>
+</body>
+
+</html>
