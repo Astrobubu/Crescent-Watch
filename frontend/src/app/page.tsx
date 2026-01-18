@@ -319,12 +319,18 @@ export default function Home() {
     ctx.lineTo(W, H - footerHeight);
     ctx.stroke();
 
-    // Crescent Watch branding (bottom left)
+    // Crescent Watch branding
     ctx.font = isRTL ? 'bold 18px Cairo, sans-serif' : 'bold 18px Inter, sans-serif';
     ctx.fillStyle = '#a78bfa';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(isRTL ? 'رصد الاهلة' : 'Crescent Watch', 24, H - footerHeight / 2);
+    if (isRTL) {
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('رصد الاهلة', W - 24, H - footerHeight / 2);
+    } else {
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Crescent Watch', 24, H - footerHeight / 2);
+    }
 
     // Date (bottom center) - numeric format
     const hijriDate = toHijri(date);
@@ -340,11 +346,12 @@ export default function Home() {
     ctx.textAlign = 'center';
     ctx.fillText(dateStr, W / 2, H - footerHeight / 2);
 
-    // Draw Legend box (bottom right, above footer)
-    const legendX = W - 220;
-    const legendY = H - footerHeight - 120;
-    const legendW = 280; // Wider legend as requested
+    // Draw Legend box
+    const legendW = 280;
     const legendH = 110;
+    // Position: LTR -> Right, RTL -> Left
+    const legendX = isRTL ? 20 : W - legendW - 20;
+    const legendY = H - footerHeight - 120;
 
     // Legend background
     ctx.fillStyle = 'rgba(10, 22, 40, 0.9)';
@@ -355,20 +362,35 @@ export default function Home() {
     ctx.fill();
     ctx.stroke();
 
-    // Legend title
-    ctx.font = 'bold 12px Inter, sans-serif';
+    // Legend title & Criterion
+    ctx.font = isRTL ? 'bold 12px Cairo, sans-serif' : 'bold 12px Inter, sans-serif';
     ctx.fillStyle = '#a1a1aa';
-    ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
+
     const titleText = isRTL ? 'مناطق الرؤية' : 'VISIBILITY ZONES';
-    ctx.fillText(titleText, legendX + 12, legendY + 10);
-    ctx.font = '10px Inter, sans-serif';
-    ctx.fillStyle = '#71717a';
-    ctx.textAlign = 'right';
-    const criterionText = criterion === 'yallop'
+    const criterionTextLabel = criterion === 'yallop'
       ? (isRTL ? 'يالوب' : 'Yallop')
       : (isRTL ? 'عودة' : 'Odeh');
-    ctx.fillText(criterionText, legendX + legendW - 12, legendY + 10);
+
+    if (isRTL) {
+      // RTL: Title Right, Criterion Left
+      ctx.textAlign = 'right';
+      ctx.fillText(titleText, legendX + legendW - 12, legendY + 10);
+
+      ctx.font = '10px Cairo, sans-serif';
+      ctx.fillStyle = '#71717a';
+      ctx.textAlign = 'left';
+      ctx.fillText(criterionTextLabel, legendX + 12, legendY + 10);
+    } else {
+      // LTR: Title Left, Criterion Right
+      ctx.textAlign = 'left';
+      ctx.fillText(titleText, legendX + 12, legendY + 10);
+
+      ctx.font = '10px Inter, sans-serif';
+      ctx.fillStyle = '#71717a';
+      ctx.textAlign = 'right';
+      ctx.fillText(criterionTextLabel, legendX + legendW - 12, legendY + 10);
+    }
 
     // Legend items
     const legendItems = [
@@ -378,16 +400,31 @@ export default function Home() {
       { color: '#ef4444', label: isRTL ? 'منطقة D: غير مرئي' : 'Zone D: Not Visible' },
     ];
 
-    ctx.font = isRTL ? '12px Inter, sans-serif' : '11px Inter, sans-serif'; // Slightly larger for Arabic
-    ctx.textAlign = 'left';
+    ctx.font = isRTL ? '12px Cairo, sans-serif' : '11px Inter, sans-serif';
+
     legendItems.forEach((item, i) => {
       const itemY = legendY + 32 + i * 18;
       ctx.beginPath();
-      ctx.arc(legendX + 18, itemY + 5, 5, 0, Math.PI * 2);
-      ctx.fillStyle = item.color;
-      ctx.fill();
-      ctx.fillStyle = '#a1a1aa';
-      ctx.fillText(item.label, legendX + 30, itemY);
+
+      if (isRTL) {
+        // RTL: Dot on Right, Text on Right (left of dot)
+        ctx.arc(legendX + legendW - 18, itemY + 5, 5, 0, Math.PI * 2);
+        ctx.fillStyle = item.color;
+        ctx.fill();
+
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#a1a1aa';
+        ctx.fillText(item.label, legendX + legendW - 30, itemY);
+      } else {
+        // LTR: Dot on Left, Text on Left
+        ctx.arc(legendX + 18, itemY + 5, 5, 0, Math.PI * 2);
+        ctx.fillStyle = item.color;
+        ctx.fill();
+
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#a1a1aa';
+        ctx.fillText(item.label, legendX + 30, itemY);
+      }
     });
 
     // Criterion badge (bottom right in footer)
