@@ -14,10 +14,11 @@ const cairo = Cairo({
   subsets: ["arabic"],
 });
 
-title: "Crescent Visibility Map",
+export const metadata: Metadata = {
+  title: "Crescent Visibility Map",
   description: "Islamic lunar crescent visibility prediction map using astronomical calculations",
-    icons: {
-  icon: '/favicon.ico',
+  icons: {
+    icon: '/favicon.ico',
   },
 };
 
