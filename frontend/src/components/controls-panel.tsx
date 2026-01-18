@@ -162,7 +162,7 @@ export function ControlsPanel({
                 <div className="p-5 space-y-5">
                     {/* Header */}
                     <div className="border-b border-border pb-4">
-                        <h1 className="text-sm font-medium tracking-wide text-foreground uppercase">
+                        <h1 className="text-sm font-bold tracking-wide text-foreground uppercase">
                             {t('controls.title')}
                         </h1>
                     </div>

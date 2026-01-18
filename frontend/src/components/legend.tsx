@@ -22,7 +22,7 @@ export default function Legend({ criterion }: LegendProps) {
         <Card className="fixed bottom-4 right-8 z-[1000] bg-card/90 backdrop-blur border-border p-3 shadow-lg">
             <div className="space-y-2">
                 <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
-                    <span className="uppercase tracking-wider font-medium">{t('legend.title')}</span>
+                    <span className="uppercase tracking-wider font-bold">{t('legend.title')}</span>
                     <span className="text-[10px] opacity-70">{criterion === 'yallop' ? t('legend.criterion.yallop') : t('legend.criterion.odeh')}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1">

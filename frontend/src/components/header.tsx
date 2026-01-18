@@ -29,7 +29,7 @@ export function Header() {
             {/* Unified Header Bar - theme aware */}
             <div className="fixed top-4 right-4 z-[4000] flex items-center gap-2 bg-card/90 backdrop-blur border border-border rounded-lg px-3 py-2 shadow-lg animate-in fade-in slide-in-from-top-2 duration-500">
                 {/* App Title */}
-                <span className="text-sm font-medium text-foreground pr-2">{t('app.title')}</span>
+                <span className="text-sm font-bold text-foreground pr-2">{t('app.title')}</span>
 
                 {/* Language Dropdown */}
                 <Select value={language} onValueChange={(v) => setLanguage(v as 'en' | 'ar')}>
