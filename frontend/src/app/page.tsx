@@ -320,7 +320,7 @@ export default function Home() {
     ctx.stroke();
 
     // Crescent Watch branding (bottom left)
-    ctx.font = 'bold 18px Inter, sans-serif';
+    ctx.font = isRTL ? 'bold 18px Cairo, sans-serif' : 'bold 18px Inter, sans-serif';
     ctx.fillStyle = '#a78bfa';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
@@ -392,10 +392,16 @@ export default function Home() {
 
     // Criterion badge (bottom right in footer)
     ctx.font = '14px Inter, sans-serif';
+    if (isRTL) ctx.font = '14px Cairo, sans-serif'; // Use Cairo for Arabic
     ctx.fillStyle = '#71717a';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`${criterionText} ${isRTL ? 'معيار' : 'Criterion'}`, W - 24, H - footerHeight / 2);
+
+    const badgeText = isRTL
+      ? `معيار ${criterionText}`
+      : `${criterionText} Criterion`;
+
+    ctx.fillText(badgeText, W - 24, H - footerHeight / 2);
 
     // Convert to blob and download
     canvas.toBlob((blob) => {
