@@ -240,7 +240,7 @@ export function ControlsPanel({
 
                         {/* Observation Dates Chips - These are STABLE and don't change when you click them */}
                         <div className="space-y-1">
-                            <Label className="text-xs text-zinc-600">Observation Dates:</Label>
+                            <Label className="text-xs text-zinc-600">{t('controls.observation_dates')}</Label>
                             <div className="flex gap-1.5">
                                 {observationDates.map((d, i) => (
                                     <button
