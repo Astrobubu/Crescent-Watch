@@ -90,7 +90,7 @@ export function Header() {
                                 </a>
                                 <a
                                     href="mailto:akhmad6093@gmail.com"
-                                    className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm mt-2"
+                                    className="px-4 py-2 rounded-md bg-secondary/50 hover:bg-secondary transition-all flex items-center gap-2 text-primary hover:text-violet-500 font-medium text-sm mt-1"
                                 >
                                     <Mail className="h-4 w-4" />
                                     <span>akhmad6093@gmail.com</span>
