@@ -440,6 +440,23 @@ export default function Home() {
 
 
 
+    // Criterion badge
+    ctx.font = isRTL ? '15px Cairo, sans-serif' : '14px Inter, sans-serif'; // Bigger for Arabic
+    ctx.fillStyle = '#71717a';
+    ctx.textBaseline = 'middle';
+
+    const badgeText = isRTL
+      ? `معيار ${criterionTextLabel}`
+      : `${criterionTextLabel} Criterion`;
+
+    if (isRTL) {
+      ctx.textAlign = 'left';
+      ctx.fillText(badgeText, 24, H - footerHeight / 2);
+    } else {
+      ctx.textAlign = 'right';
+      ctx.fillText(badgeText, W - 24, H - footerHeight / 2);
+    }
+
     // Convert to blob and download
     canvas.toBlob((blob) => {
       if (!blob) return;
