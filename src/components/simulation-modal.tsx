@@ -405,17 +405,21 @@ export default function SimulationModal({
 
     }, [frame, stars, skyline, showBuildings]);
 
+    // Resizing logic - Fix squishing by using ResizeObserver
     useEffect(() => {
         if (!isOpen || !containerRef.current) return;
-        const updateSize = () => {
-            if (containerRef.current) {
-                const rect = containerRef.current.getBoundingClientRect();
-                setCanvasSize({ width: rect.width, height: 400 });
+
+        const resizeObserver = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const { width, height } = entry.contentRect;
+                if (width > 0 && height > 0) {
+                    setCanvasSize({ width, height });
+                }
             }
-        };
-        updateSize();
-        window.addEventListener('resize', updateSize);
-        return () => window.removeEventListener('resize', updateSize);
+        });
+
+        resizeObserver.observe(containerRef.current);
+        return () => resizeObserver.disconnect();
     }, [isOpen]);
 
     useEffect(() => {
@@ -433,97 +437,113 @@ export default function SimulationModal({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/90 backdrop-blur-md">
-            <div className="relative w-full max-w-6xl bg-card border rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 md:p-6">
+            <div className="relative w-full max-w-6xl bg-card border rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] md:max-h-[800px]">
 
-                {/* Header */}
-                <div className="flex items-center justify-between px-6 py-3 border-b bg-muted/20">
-                    <div className="flex items-center gap-4">
+                {/* Header - Responsive Stacking */}
+                <div className="flex flex-col gap-3 px-4 py-3 border-b bg-muted/20 shrink-0">
+                    {/* Top Row: Title + Close (Mobile) + Toggles */}
+                    <div className="flex items-center justify-between">
                         <h2 className="text-lg font-bold">{t.simulation}</h2>
-                        <div className="flex items-center gap-2 text-sm bg-background p-1 pr-3 rounded-xl border shadow-sm">
-                            <span className="text-muted-foreground pl-2 text-xs uppercase tracking-wider">{t.latitude}:</span>
-                            <Input
-                                className="w-20 h-7 text-xs font-mono border-0 focus-visible:ring-0 px-1 bg-transparent"
-                                value={editLat}
-                                onChange={e => setEditLat(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && handleUpdateLocation()}
-                                onBlur={handleUpdateLocation}
-                            />
-                            <div className="w-px h-4 bg-muted" />
-                            <span className="text-muted-foreground pl-2 text-xs uppercase tracking-wider">{t.longitude}:</span>
-                            <Input
-                                className="w-20 h-7 text-xs font-mono border-0 focus-visible:ring-0 px-1 bg-transparent"
-                                value={editLon}
-                                onChange={e => setEditLon(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && handleUpdateLocation()}
-                                onBlur={handleUpdateLocation}
-                            />
-                            <Button variant="ghost" size="icon" className="h-6 w-6 ml-1" onClick={handleUpdateLocation}>
-                                <RefreshCw className="w-3 h-3" />
+
+                        <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
+                                <Label className="text-xs text-muted-foreground hidden sm:block">{t.format12h}</Label>
+                                <Switch checked={use24Hour} onCheckedChange={setUse24Hour} />
+                                <Label className="text-xs text-muted-foreground">{t.format24h}</Label>
+                            </div>
+                            <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full">
+                                <X className="w-5 h-5" />
                             </Button>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                            <Label className="text-xs text-muted-foreground">{t.format12h}</Label>
-                            <Switch checked={use24Hour} onCheckedChange={setUse24Hour} />
-                            <Label className="text-xs text-muted-foreground">{t.format24h}</Label>
-                        </div>
-                        <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full">
-                            <X className="w-5 h-5" />
+                    {/* Second Row: Inputs (Full width on mobile) */}
+                    <div className="flex items-center gap-2 text-sm bg-background p-1.5 rounded-xl border shadow-sm w-full md:w-auto self-start">
+                        <span className="text-muted-foreground pl-2 text-xs uppercase tracking-wider whitespace-nowrap">{t.latitude}:</span>
+                        <Input
+                            className="flex-1 min-w-0 h-8 text-xs font-mono border-0 focus-visible:ring-0 px-1 bg-transparent"
+                            value={editLat}
+                            onChange={e => setEditLat(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleUpdateLocation()}
+                            onBlur={handleUpdateLocation}
+                        />
+                        <div className="w-px h-4 bg-muted shrink-0" />
+                        <span className="text-muted-foreground pl-2 text-xs uppercase tracking-wider whitespace-nowrap">{t.longitude}:</span>
+                        <Input
+                            className="flex-1 min-w-0 h-8 text-xs font-mono border-0 focus-visible:ring-0 px-1 bg-transparent"
+                            value={editLon}
+                            onChange={e => setEditLon(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleUpdateLocation()}
+                            onBlur={handleUpdateLocation}
+                        />
+                        <Button variant="ghost" size="icon" className="h-7 w-7 ml-1 shrink-0" onClick={handleUpdateLocation}>
+                            <RefreshCw className="w-3.5 h-3.5" />
                         </Button>
                     </div>
                 </div>
 
-                {/* Canvas Area */}
-                <div className="relative w-full bg-black flex-1 min-h-[400px]" ref={containerRef}>
+                {/* Canvas Area with Responsive Layout - Scrollable content area on mobile */}
+                {/* Desktop: Force min-h to prevent collapse (empty view fix) */}
+                <div className="relative w-full bg-black flex flex-col md:flex-1 md:block md:min-h-[500px] overflow-y-auto md:overflow-hidden" ref={containerRef}>
                     {isLoading && (
-                        <div className="absolute inset-0 flex items-center justify-center text-white gap-2">
+                        <div className="absolute inset-0 flex items-center justify-center text-white gap-2 z-10 pointer-events-none">
                             <Loader2 className="animate-spin" /> {t.calculating}
                         </div>
                     )}
-                    <canvas ref={canvasRef} className="block w-full h-full" />
 
-                    {/* Controls Overlay - Simple, NO GRADIENT */}
-                    <div className="absolute bottom-0 left-0 right-0 p-4 bg-black/60 backdrop-blur-sm text-white border-t border-white/10">
+                    {/* Fixed Height Canvas on Mobile (250px), Full/Absolute on Desktop */}
+                    <div className="relative w-full h-[250px] shrink-0 md:h-full md:absolute md:inset-0">
+                        <canvas ref={canvasRef} className="block w-full h-full" />
+                    </div>
+
+                    {/* Controls Overlay - Stacked Below on Mobile, Overlay on Desktop */}
+                    <div className="relative w-full bg-card text-foreground z-20 md:absolute md:bottom-0 md:left-0 md:right-0 md:bg-black/60 md:backdrop-blur-sm md:text-white md:border-t md:border-white/10 p-4 shrink-0">
                         <div className="flex flex-col gap-4 max-w-5xl mx-auto">
                             {/* Top row: Time + Slider + Checkbox */}
-                            <div className="flex items-center gap-6">
-                                <div className="font-mono text-xl w-24">{currentTime ? formatTime(currentTime) : '--:--'}</div>
+                            <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-6">
+                                <div className="flex items-center justify-between">
+                                    <div className="font-mono text-xl w-24 text-center md:text-left">{currentTime ? formatTime(currentTime) : '--:--'}</div>
+                                    <div className="flex items-center gap-2 md:hidden">
+                                        <Checkbox id="build-mobile" checked={showBuildings} onCheckedChange={c => setShowBuildings(!!c)} />
+                                        <Label htmlFor="build-mobile" className="text-xs">{t.showBuildings}</Label>
+                                    </div>
+                                </div>
+
                                 <Slider
                                     value={[timeOffset]}
                                     onValueChange={([v]) => setTimeOffset(v)}
                                     max={75}
                                     step={1}
-                                    className="flex-1"
+                                    className="flex-1 py-2"
                                 />
-                                <div className="flex items-center gap-2">
+
+                                <div className="hidden md:flex items-center gap-2">
                                     <Checkbox id="build" checked={showBuildings} onCheckedChange={c => setShowBuildings(!!c)} className="border-white/50 data-[state=checked]:bg-white data-[state=checked]:text-black" />
                                     <Label htmlFor="build" className="text-xs text-white/70">{t.showBuildings}</Label>
                                 </div>
                             </div>
 
-                            {/* Bottom row: Data Grid - Simple */}
-                            <div className="grid grid-cols-5 gap-4 text-sm">
+                            {/* Bottom row: Data Grid - Responsive Grid */}
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-y-3 gap-x-4 text-sm">
                                 <div>
-                                    <div className="text-[10px] text-white/50 uppercase">{t.moonAltitude}</div>
+                                    <div className="text-[10px] text-muted-foreground md:text-white/50 uppercase">{t.moonAltitude}</div>
                                     <div className="font-mono">{frame?.moonAlt.toFixed(2)}°</div>
                                 </div>
                                 <div>
-                                    <div className="text-[10px] text-white/50 uppercase">{t.sunAltitude}</div>
+                                    <div className="text-[10px] text-muted-foreground md:text-white/50 uppercase">{t.sunAltitude}</div>
                                     <div className="font-mono">{frame?.sunAlt.toFixed(2)}°</div>
                                 </div>
                                 <div>
-                                    <div className="text-[10px] text-white/50 uppercase">{t.elongation}</div>
+                                    <div className="text-[10px] text-muted-foreground md:text-white/50 uppercase">{t.elongation}</div>
                                     <div className="font-mono">{frame?.elongation.toFixed(2)}°</div>
                                 </div>
                                 <div>
-                                    <div className="text-[10px] text-white/50 uppercase">{t.illumination}</div>
+                                    <div className="text-[10px] text-muted-foreground md:text-white/50 uppercase">{t.illumination}</div>
                                     <div className="font-mono">{(frame ? frame.illumination * 100 : 0).toFixed(1)}%</div>
                                 </div>
-                                <div>
-                                    <div className="text-[10px] text-white/50 uppercase">{t.azimuthDiff}</div>
+                                <div className="col-span-2 md:col-span-1">
+                                    <div className="text-[10px] text-muted-foreground md:text-white/50 uppercase">{t.azimuthDiff}</div>
                                     <div className="font-mono">{frame ? Math.abs(frame.moonAz - frame.sunAz).toFixed(2) : 0}°</div>
                                 </div>
                             </div>

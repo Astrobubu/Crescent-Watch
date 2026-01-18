@@ -442,7 +442,7 @@ export default function Home() {
 
 
   return (
-    <div className={cn("h-screen flex flex-col md:flex-row overflow-hidden", darkMode ? 'dark' : '')}>
+    <div className={cn("min-h-screen flex flex-col md:h-screen md:flex-row md:overflow-hidden", darkMode ? 'dark' : '')}>
       {/* Map - LEFT */}
       <div
         ref={mapContainerRef}
@@ -467,9 +467,6 @@ export default function Home() {
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center gap-2 z-10">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <p className="text-sm">{t.calculating}</p>
-            <div className="w-32 h-1.5 bg-muted rounded overflow-hidden border">
-              <div className="h-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
-            </div>
           </div>
         )}
 
@@ -487,18 +484,20 @@ export default function Home() {
         )}
 
         {/* Legend - Bottom Left Overlay */}
-        {/* Legend - Bottom Left Overlay - NO HEADER */}
-        <div className={cn(
-          "absolute bottom-4 bg-card/90 backdrop-blur-md rounded-2xl border p-3 shadow-lg pointer-events-none text-xs",
-          isArabic ? "right-4 text-right" : "left-4 text-left"
-        )} dir={isArabic ? 'rtl' : 'ltr'}>
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-green-500" /><span>{t.zoneA}: {t.zoneADesc}</span></div>
-            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-yellow-500" /><span>{t.zoneB}: {t.zoneBDesc}</span></div>
-            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-orange-500" /><span>{t.zoneC}: {t.zoneCDesc}</span></div>
-            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-500" /><span>{t.zoneD}: {t.zoneDDesc}</span></div>
+        {/* Legend - Bottom Left Overlay - Conditional & Responsive */}
+        {!isCalculating && visibilityPoints.length > 0 && (
+          <div className={cn(
+            "absolute bottom-4 bg-card/90 backdrop-blur-md rounded-2xl border p-3 shadow-lg pointer-events-none text-xs transition-transform scale-75 md:scale-100",
+            isArabic ? "right-4 text-right origin-bottom-right" : "left-4 text-left origin-bottom-left"
+          )} dir={isArabic ? 'rtl' : 'ltr'}>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-green-500" /><span>{t.zoneA}: {t.zoneADesc}</span></div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-yellow-500" /><span>{t.zoneB}: {t.zoneBDesc}</span></div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-orange-500" /><span>{t.zoneC}: {t.zoneCDesc}</span></div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-500" /><span>{t.zoneD}: {t.zoneDDesc}</span></div>
+            </div>
           </div>
-        </div>
+        )}
 
       </div>
 
