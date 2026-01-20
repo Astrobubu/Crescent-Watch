@@ -16,12 +16,12 @@ const tajawal = Tajawal({
 });
 
 export const metadata: Metadata = {
-  title: "Crescent Watch | رصد الهلال",
+  title: "Crescent Watch | رصد الاهلة",
   description: "High-precision Islamic lunar crescent visibility map and simulation. Track when and where the new moon will be visible worldwide.",
   keywords: ["crescent", "hilal", "moon", "islamic calendar", "ramadan", "visibility", "astronomy"],
   authors: [{ name: "Constant Labs" }],
   openGraph: {
-    title: "Crescent Watch | رصد الهلال",
+    title: "Crescent Watch | رصد الاهلة",
     description: "Track Islamic lunar crescent visibility worldwide",
     type: "website",
   },
@@ -80,6 +80,7 @@ export default function RootLayout({
       </head>
       <body
         className={`${outfit.variable} ${tajawal.variable} antialiased font-sans`}
+        suppressHydrationWarning
       >
         {children}
       </body>

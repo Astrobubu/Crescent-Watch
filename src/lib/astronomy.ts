@@ -443,8 +443,8 @@ export function getSimulationTrajectory(
         const trajectory: SimulationPoint[] = [];
         const observer = new Astronomy.Observer(lat, lon, 0);
 
-        // Generate 75 minutes of data (every 2 minutes)
-        for (let i = 0; i <= 75; i += 2) {
+        // Generate 150 minutes of data (every 2 minutes)
+        for (let i = 0; i <= 150; i += 2) {
             const offsetMs = i * 60 * 1000; // Convert minutes to milliseconds
             const timeDate = new Date(sunset.date.getTime() + offsetMs);
             const time = Astronomy.MakeTime(timeDate);
@@ -612,8 +612,8 @@ export function getEnhancedSimulationTrajectory(
         const trajectory: SimulationPoint[] = [];
         const observer = new Astronomy.Observer(lat, lon, 0);
 
-        // Generate 75 minutes of data (every 2 minutes)
-        for (let i = 0; i <= 75; i += 2) {
+        // Generate 150 minutes of data (every 2 minutes)
+        for (let i = 0; i <= 150; i += 2) {
             const offsetMs = i * 60 * 1000;
             const timeDate = new Date(sunset.date.getTime() + offsetMs);
             const time = Astronomy.MakeTime(timeDate);

@@ -257,7 +257,7 @@ const translations: Record<Locale, Translations> = {
         sunAzLabel: 'Sun Azimuth',
     },
     ar: {
-        appName: 'رصد الهلال',
+        appName: 'رصد الاهلة',
         calculate: 'احسب',
         calculating: 'جاري الحساب...',
         selectDate: 'اختر التاريخ',
@@ -333,7 +333,7 @@ const translations: Record<Locale, Translations> = {
         // Settings & About
         adjustFontSize: 'حجم الخط',
         aboutApp: 'عن التطبيق',
-        aboutDesc: 'رصد الهلال هي أداة عالية الدقة للتنبؤ بإمكانية رؤية الهلال القمري.',
+        aboutDesc: 'رصد الاهلة هي أداة عالية الدقة للتنبؤ بإمكانية رؤية الهلال القمري.',
         developedBy: 'تطوير',
         projectLead: 'إشراف',
         version: 'الإصدار',
