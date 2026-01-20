@@ -127,6 +127,20 @@ export default function SimulationModal({
 }: SimulationModalProps) {
     const t = getTranslations(locale);
 
+    // Static stars for simulation
+    const stars = useMemo(() => {
+        const s = [];
+        for (let i = 0; i < 200; i++) {
+            s.push({
+                az: Math.random() * 360,
+                alt: Math.random() * 90,
+                size: Math.random() * 1.5 + 0.5,
+                brightness: Math.random()
+            });
+        }
+        return s;
+    }, []);
+
     const [isPlaying, setIsPlaying] = useState(false);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const playIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -165,12 +179,7 @@ export default function SimulationModal({
     const [isDragging, setIsDragging] = useState(false);
 
     // Stars with Az/Alt coordinates (Spherical distribution)
-    const [stars] = useState(() => Array.from({ length: 400 }, () => ({
-        az: Math.random() * 360,
-        alt: Math.random() * 90,
-        size: Math.random() * 1.5 + 0.2,
-        brightness: Math.random()
-    })));
+
 
     const [canvasSize, setCanvasSize] = useState({ width: 800, height: 400 });
 
@@ -398,6 +407,8 @@ export default function SimulationModal({
 
 
 
+
+
     const skyline = useMemo(() => {
         // Dubai skyline doesn't really depend on data/loc unless we want global?
         // User asked for "Rough Dubai Skyline". We'll just generate it.
@@ -429,11 +440,14 @@ export default function SimulationModal({
         if (!date) return '--:--';
         if (use24Hour) {
             return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' });
+
         }
         return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' });
     };
 
     // Viewport Interaction Handlers
+    const lastTap = useRef<number>(0);
+
     const handleWheel = useCallback((e: React.WheelEvent) => {
         const zoomSpeed = fov / 20; // Scale speed with FOV
         const delta = Math.sign(e.deltaY) * zoomSpeed;
@@ -442,6 +456,14 @@ export default function SimulationModal({
     }, [fov]);
 
     const handlePointerDown = useCallback((e: React.PointerEvent) => {
+        // Double tap detection
+        const now = Date.now();
+        if (now - lastTap.current < 300) {
+            // Double tap! Zoom in towards center or tap? Let's just zoom in step
+            setFov(prev => Math.max(10, prev - 20)); // Zoom in by 20 degrees
+        }
+        lastTap.current = now;
+
         setIsDragging(true);
         const startAz = viewAz !== null ? viewAz : (frame ? frame.moonAz : 180);
         const startAlt = viewAlt !== null ? viewAlt : (frame ? frame.moonAlt : 15);
@@ -834,7 +856,7 @@ export default function SimulationModal({
                 if (normalizedAz % 45 === 0) {
                     const labels: Record<number, string> = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SW', 270: 'W', 315: 'NW' };
                     ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-                    ctx.fillText(labels[normalizedAz] || `${normalizedAz}°`, pos.x, pos.y + 8);
+                    ctx.fillText(labels[normalizedAz] || (normalizedAz + '°'), pos.x, pos.y + 8);
                 }
             }
         }
@@ -855,30 +877,33 @@ export default function SimulationModal({
                 const ampm = h >= 12 ? 'PM' : 'AM';
                 const h12 = h % 12 || 12;
                 return use24Hour
-                    ? `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
-                    : `${h12.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} ${ampm}`;
+                    ? (h.toString().padStart(2, '0') + ':' + m.toString().padStart(2, '0') + ' ')
+                    : (h12.toString().padStart(2, '0') + ':' + m.toString().padStart(2, '0') + ' ' + ampm + ' ');
             };
 
-            ctx.font = '12px Tajawal, sans-serif';
+            // Mobile responsiveness
+            const isMobile = W < 600;
+            const baseFontSize = isMobile ? 10 : 12;
+            const titleFontSize = isMobile ? 13 : 16;
+            const padding = isMobile ? 10 : 20;
+            const lineHeight = isMobile ? 13 : 16;
+            const headerGap = isMobile ? 8 : 12;
+            let lineY = padding;
+
             ctx.textAlign = 'left';
             ctx.textBaseline = 'top';
             ctx.fillStyle = '#ffffff';
             ctx.shadowColor = 'rgba(0,0,0,0.8)';
             ctx.shadowBlur = 4;
 
-            const padding = 20;
-            let lineY = padding;
-            const lineHeight = 16;
-            const headerGap = 12;
-
             // --- Header Title ---
-            ctx.font = 'bold 16px Tajawal, sans-serif';
+            ctx.font = `bold ${titleFontSize}px Tajawal, sans-serif`;
             ctx.fillStyle = '#ffffff';
             ctx.fillText(t.visibilityAnalysis, padding, lineY);
             lineY += lineHeight * 1.5;
 
             // --- Date & Time ---
-            ctx.font = '12px Tajawal, sans-serif';
+            ctx.font = `${baseFontSize}px Tajawal, sans-serif`;
             const dateStr = new Date(data.sunsetIso).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-GB', {
                 weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric'
             });
@@ -886,12 +911,12 @@ export default function SimulationModal({
             lineY += lineHeight * 1.5;
 
             // --- OBSERVATIONAL DATA ---
-            ctx.font = 'bold 12px Tajawal, sans-serif';
+            ctx.font = `bold ${baseFontSize}px Tajawal, sans-serif`;
             ctx.fillStyle = '#ffffff';
             ctx.fillText(t.observation.toUpperCase(), padding, lineY);
             lineY += lineHeight * 1.2;
 
-            ctx.font = '12px Tajawal, sans-serif';
+            ctx.font = `${baseFontSize}px Tajawal, sans-serif`;
             ctx.fillStyle = '#ffffff';
 
             let lagTimeStr = '--';
@@ -920,19 +945,19 @@ export default function SimulationModal({
                 ctx.fillText(item.label + ':', padding, lineY);
                 ctx.fillStyle = '#ffffff';
                 const labelWidth = ctx.measureText(item.label + ':').width;
-                ctx.fillText(item.value, padding + Math.max(100, labelWidth + 10), lineY);
+                ctx.fillText(item.value, padding + Math.max(isMobile ? 80 : 100, labelWidth + 10), lineY);
                 lineY += lineHeight;
             });
 
             lineY += headerGap;
 
             // --- TOPOCENTRIC DATA ---
-            ctx.font = 'bold 12px Tajawal, sans-serif';
+            ctx.font = `bold ${baseFontSize}px Tajawal, sans-serif`;
             ctx.fillStyle = '#ffffff';
             ctx.fillText(t.topocentric.toUpperCase(), padding, lineY);
             lineY += lineHeight * 1.2;
 
-            ctx.font = '12px Tajawal, sans-serif';
+            ctx.font = `${baseFontSize}px Tajawal, sans-serif`;
             ctx.fillStyle = '#ffffff';
 
             const topoItems = [
@@ -945,18 +970,18 @@ export default function SimulationModal({
                 ctx.fillText(item.label + ':', padding, lineY);
                 ctx.fillStyle = '#ffffff';
                 const labelWidth = ctx.measureText(item.label + ':').width;
-                ctx.fillText(item.value, padding + Math.max(100, labelWidth + 10), lineY);
+                ctx.fillText(item.value, padding + Math.max(isMobile ? 80 : 100, labelWidth + 10), lineY);
                 lineY += lineHeight;
             });
             lineY += headerGap;
 
             // --- GEOCENTRIC DATA ---
-            ctx.font = 'bold 12px Tajawal, sans-serif';
+            ctx.font = `bold ${baseFontSize}px Tajawal, sans-serif`;
             ctx.fillStyle = '#ffffff';
             ctx.fillText(t.geocentric.toUpperCase(), padding, lineY);
             lineY += lineHeight * 1.2;
 
-            ctx.font = '12px Tajawal, sans-serif';
+            ctx.font = `${baseFontSize}px Tajawal, sans-serif`;
             ctx.fillStyle = '#ffffff';
 
             const geoItems = [
@@ -969,39 +994,53 @@ export default function SimulationModal({
                 ctx.fillText(item.label + ':', padding, lineY);
                 ctx.fillStyle = '#ffffff';
                 const labelWidth = ctx.measureText(item.label + ':').width;
-                ctx.fillText(item.value, padding + Math.max(100, labelWidth + 10), lineY);
+                ctx.fillText(item.value, padding + Math.max(isMobile ? 80 : 100, labelWidth + 10), lineY);
                 lineY += lineHeight;
             });
 
-            // 3. Sky Body Lines (Elongation)
+            // 3. Sky Body Lines (Elongation) - Restored
             const sunScreenPos = toScreen(frame.sunAz, frame.sunAlt);
             const moonPos = toScreen(frame.moonAz, frame.moonAlt);
 
-            if (sunScreenPos.y > -1000 && sunScreenPos.y < H + 1000) {
+            // Always draw elongation line if both are reasonably close to view
+            // Relaxed bounds check
+            if (sunScreenPos.y > -2000 && sunScreenPos.y < H + 2000) {
                 ctx.strokeStyle = '#aaaaaa';
-                ctx.setLineDash([2, 2]);
+                ctx.setLineDash([2, 5]); // Dashed line
+                ctx.lineWidth = 1;
                 ctx.beginPath();
                 ctx.moveTo(sunScreenPos.x, sunScreenPos.y);
                 ctx.lineTo(moonPos.x, moonPos.y);
                 ctx.stroke();
                 ctx.setLineDash([]);
 
+                // Middle of Moon Indicator (Center Crosshair)
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(moonPos.x - 10, moonPos.y);
+                ctx.lineTo(moonPos.x + 10, moonPos.y);
+                ctx.moveTo(moonPos.x, moonPos.y - 10);
+                ctx.lineTo(moonPos.x, moonPos.y + 10);
+                ctx.stroke();
+
                 const midX = (sunScreenPos.x + moonPos.x) / 2;
                 const midY = (sunScreenPos.y + moonPos.y) / 2;
-                ctx.shadowColor = 'rgba(0,0,0,0.8)';
-                ctx.shadowBlur = 4;
-                ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 12px Tajawal, sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText(`${t.elongation}`, midX, midY - 15);
-                ctx.fillText(`${formatDMS(frame.elongation)}`, midX, midY);
-                ctx.shadowColor = 'transparent';
-                ctx.shadowBlur = 0;
-                ctx.textAlign = 'left';
+
+                // Draw label only if visible in viewport
+                if (midX > 0 && midX < W && midY > 0 && midY < H) {
+                    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+                    ctx.shadowBlur = 4;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.textAlign = 'center';
+                    ctx.font = 'bold 12px Tajawal, sans-serif';
+                    ctx.fillText(`${t.elongation} ${formatDMS(frame.elongation)}`, midX, midY - 5);
+                    ctx.shadowColor = 'transparent';
+                    ctx.shadowBlur = 0;
+                    ctx.textAlign = 'left';
+                }
             }
         }
-
-
     }, [frame, stars, skyline, showBuildings, showAdvancedDetails, data, locale, t, viewAz, viewAlt, fov, canvasSize, showOverlay]);
 
 
@@ -1037,8 +1076,10 @@ export default function SimulationModal({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 md:p-6">
-            <div className="relative w-full max-w-6xl bg-card border rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] md:max-h-[800px]">
+        // Use 100dvh for mobile browser height consistency
+        <div className="fixed inset-0 z-[5000] flex flex-col bg-background/95 backdrop-blur-xl animate-in fade-in duration-200 h-[100dvh]">
+            {/* Full Screen - No Outer Padding */}
+            <div className="relative flex flex-col w-full h-full overflow-hidden">
 
                 {/* Header - Responsive Stacking */}
                 <div className="flex flex-col gap-3 px-4 py-3 border-b bg-muted/20 shrink-0">
@@ -1060,27 +1101,7 @@ export default function SimulationModal({
 
                     {/* Second Row: Inputs (Full width on mobile) */}
                     {/* Second Row: Inputs (Flow layout) */}
-                    <div className="flex flex-wrap items-center gap-3 w-full">
-                        <div className="flex items-center gap-2 text-sm bg-background p-1.5 rounded-xl border shadow-sm grow md:grow-0">
-                            <span className="text-muted-foreground pl-2 text-xs uppercase tracking-wider whitespace-nowrap">{t.latitude}:</span>
-                            <Input
-                                className="flex-1 min-w-[60px] h-8 text-xs font-arabic border-0 focus-visible:ring-0 px-1 bg-transparent"
-                                value={editLat}
-                                onChange={e => setEditLat(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && handleUpdateLocation()}
-                                onBlur={handleUpdateLocation}
-                            />
-                            <div className="w-px h-4 bg-muted shrink-0" />
-                            <span className="text-muted-foreground pl-2 text-xs uppercase tracking-wider whitespace-nowrap">{t.longitude}:</span>
-                            <Input
-                                className="flex-1 min-w-[60px] h-8 text-xs font-arabic border-0 focus-visible:ring-0 px-1 bg-transparent"
-                                value={editLon}
-                                onChange={e => setEditLon(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && handleUpdateLocation()}
-                                onBlur={handleUpdateLocation}
-                            />
-                        </div>
-                    </div>
+                    {/* Inputs Moved to Footer - Top Section Cleared */}
 
                     {/* Advanced Details Toggle and Panel REMOVED */}
                 </div>
@@ -1096,8 +1117,9 @@ export default function SimulationModal({
                     )}
 
                     {/* Drawing Container - tracked by ResizeObserver */}
+                    {/* Lower min-height for mobile to ensure footer fits on 100dvh screens */}
                     <div
-                        className="relative w-full flex-1 min-h-[400px] touch-none cursor-move group"
+                        className="relative w-full flex-1 min-h-[60vh] md:min-h-[400px] touch-none cursor-move group"
                         ref={containerRef}
                         onWheel={handleWheel}
                         onPointerDown={handlePointerDown}
@@ -1118,13 +1140,41 @@ export default function SimulationModal({
 
                         {/* Interactive hint */}
                         <div className="absolute bottom-4 left-4 z-10 text-[10px] text-white/30 pointer-events-none select-none">
-                            Drag to Pan • Scroll to Zoom
+                            Drag to Pan • Scroll/Double-Tap to Zoom
                         </div>
                     </div>
 
-                    {/* Controls Footer - Distinct section, no overlap */}
-                    <div className="relative w-full bg-card text-foreground z-20 border-t p-3 md:p-4 shrink-0">
-                        <div className="flex flex-col gap-4 md:gap-4 max-w-5xl mx-auto">
+                    {/* Controls Footer - Distinct section, no overlap, scrollable on small screens if needed */}
+                    <div className="relative w-full bg-card text-foreground z-20 border-t p-3 md:p-4 pb-8 md:pb-6 shrink-0 overflow-y-auto max-h-[50vh]">
+                        <div className="flex flex-col gap-4 md:gap-4 max-w-7xl mx-auto w-full">
+                            {/* Lat/Lon Inputs - Moved Here */}
+                            <div className="flex items-center gap-4 border-b pb-4 mb-2">
+                                <div className="flex flex-wrap items-center gap-2 text-sm bg-muted/30 p-1.5 rounded-xl border border-white/10 w-full md:w-auto">
+                                    <div className="flex items-center gap-2 flex-1 min-w-[140px]">
+                                        <span className="text-muted-foreground pl-2 text-xs uppercase tracking-wider whitespace-nowrap">{t.latitude}:</span>
+                                        <Input
+                                            className="flex-1 min-w-[60px] h-8 text-xs font-arabic border-0 focus-visible:ring-0 px-1 bg-transparent"
+                                            value={editLat}
+                                            onChange={e => setEditLat(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && handleUpdateLocation()}
+                                            onBlur={handleUpdateLocation}
+                                        />
+                                    </div>
+                                    <div className="hidden md:block w-px h-4 bg-muted shrink-0" />
+                                    <div className="flex items-center gap-2 flex-1 min-w-[140px]">
+                                        <span className="text-muted-foreground pl-2 text-xs uppercase tracking-wider whitespace-nowrap">{t.longitude}:</span>
+                                        <Input
+                                            className="flex-1 min-w-[60px] h-8 text-xs font-arabic border-0 focus-visible:ring-0 px-1 bg-transparent"
+                                            value={editLon}
+                                            onChange={e => setEditLon(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && handleUpdateLocation()}
+                                            onBlur={handleUpdateLocation}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex-1" /> {/* Spacer */}
+                            </div>
+
                             {/* Bottom row: Time + Slider + Checkbox + Play + Download */}
                             <div className="flex flex-col gap-4">
                                 <div className="flex items-center gap-4">

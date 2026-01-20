@@ -142,6 +142,10 @@ export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
 
+  // Map View State (Zoom & Pan)
+  const [viewState, setViewState] = useState({ zoom: 1, offsetX: 0, offsetY: 0, isDragging: false });
+  const lastMousePos = useRef<{ x: number, y: number } | null>(null);
+
   const t = getTranslations(locale);
   const isArabic = locale === 'ar';
 
@@ -280,14 +284,55 @@ export default function Home() {
     const borderColor = darkMode ? '#334155' : '#cbd5e1'; // slate-300
     const gridColor = darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)';
 
+    // Clear background
     ctx.fillStyle = oceanColor;
     ctx.fillRect(0, 0, width, height);
 
-    if (worldData) {
-      ctx.fillStyle = landColor;
-      ctx.strokeStyle = borderColor;
-      ctx.lineWidth = 0.5;
+    ctx.save();
 
+    // Apply Pan & Zoom Transforms
+    ctx.translate(width / 2 + viewState.offsetX, height / 2 + viewState.offsetY);
+    ctx.scale(viewState.zoom, viewState.zoom);
+
+    // Aspect Ratio Logic: Force 2:1 ratio for world map
+    // We calculate "base dimensions" that fit within the canvas at zoom 1
+    const aspect = 2; // World width / World height
+    let mapWidth, mapHeight;
+
+    if (width / height > aspect) {
+      // Canvas is wider than map: fit to height
+      mapHeight = height;
+      mapWidth = mapHeight * aspect;
+    } else {
+      // Canvas is taller than map: fit to width
+      mapWidth = width;
+      mapHeight = mapWidth / aspect;
+    }
+
+    // Center map drawing at (0,0) after translation
+    const startX = -mapWidth / 2;
+    const startY = -mapHeight / 2;
+
+    // Define local projection helper that maps lon/lat to relative coordinates [0..mapWidth, 0..mapHeight]
+    // Then we add startX/startY to center it.
+    const getPoint = (lon: number, lat: number) => {
+      // Normalized [0,1]
+      let nx = (lon + 180) / 360;
+      let ny = (90 - lat) / 180;
+
+      if (projection === 'equalarea') {
+        ny = 0.5 - (Math.sin(lat * Math.PI / 180) / 2);
+      }
+
+      return [startX + nx * mapWidth, startY + ny * mapHeight];
+    };
+
+    // Draw Map Content
+    ctx.fillStyle = landColor;
+    ctx.strokeStyle = borderColor;
+    ctx.lineWidth = 0.5 / viewState.zoom; // Scale line width down
+
+    if (worldData) {
       for (const feature of worldData.features) {
         const { type, coordinates } = feature.geometry;
         const drawPolygon = (rings: number[][][]) => {
@@ -295,7 +340,7 @@ export default function Home() {
           for (const ring of rings) {
             let first = true;
             for (const coord of ring) {
-              const [x, y] = projectPoint(coord[0], coord[1], width, height);
+              const [x, y] = getPoint(coord[0], coord[1]);
               if (first) { ctx.moveTo(x, y); first = false; }
               else { ctx.lineTo(x, y); }
             }
@@ -313,67 +358,73 @@ export default function Home() {
 
     if (visibilityPoints.length > 0) {
       const step = parseFloat(resolution);
+      const stepW = (step / 360) * mapWidth;
+      const stepH = (step / 180) * mapHeight; // Approx for rect
+
       for (const point of visibilityPoints) {
-        const [x, y] = projectPoint(point.lon, point.lat, width, height);
-        const [x2] = projectPoint(point.lon + step, point.lat, width, height);
-        const [, y2] = projectPoint(point.lon, point.lat - step, width, height);
-        const cellW = Math.abs(x2 - x);
-        const cellH = Math.abs(y2 - y);
+        const [x, y] = getPoint(point.lon, point.lat);
+        // Recalculate cell size for equal area if needed or reuse approx
+        // For visual consistency rects are fine but let's be cleaner:
+        // Use center point x,y and fixed width/height based on resolution? 
+        // Or calculate 4 corners? Simple approx for speed:
+
         ctx.fillStyle = ZONE_COLORS[point.color];
         ctx.globalAlpha = 0.65;
-        ctx.fillRect(x - cellW / 2, y - cellH / 2, cellW, cellH);
+        // Adjust y to be top-left of cell? Visibility points are usually centers.
+        ctx.fillRect(x - stepW / 2, y - stepH / 2, stepW + 0.5, stepH + 0.5); // +0.5 to avoid gaps
       }
       ctx.globalAlpha = 1;
     }
 
     // Grid
     ctx.strokeStyle = gridColor;
-    ctx.lineWidth = 0.5;
+    ctx.lineWidth = 0.5 / viewState.zoom;
+
+    // Draw Grid Lines (simplified)
+    ctx.beginPath();
     for (let lon = -180; lon <= 180; lon += 30) {
-      const [x, y1] = projectPoint(lon, -85, width, height);
-      const [, y2] = projectPoint(lon, 85, width, height);
-      ctx.beginPath(); ctx.moveTo(x, y1); ctx.lineTo(x, y2); ctx.stroke();
+      const [x1, y1] = getPoint(lon, -90);
+      const [x2, y2] = getPoint(lon, 90);
+      ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
     }
     for (let lat = -60; lat <= 60; lat += 30) {
-      if (lat > parseInt(maxLat) || lat < -parseInt(maxLat)) continue; // Only draw grid lines within coverage
-      const [x1, y] = projectPoint(-180, lat, width, height);
-      const [x2] = projectPoint(180, lat, width, height);
-      ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke();
+      const [x1, y1] = getPoint(-180, lat);
+      const [x2, y2] = getPoint(180, lat);
+      ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
     }
+    ctx.stroke();
 
-    // Draw Axis Labels
-    ctx.fillStyle = darkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)';
-    ctx.font = '10px Inter';
-    ctx.textAlign = 'center';
-    // Lon (bottom)
-    for (let lon = -150; lon < 180; lon += 30) {
-      const [x] = projectPoint(lon, -85, width, height);
-      const [, y] = projectPoint(lon, -85, width, height);
-      if (y < height - 5) ctx.fillText(`${lon}°`, x, height - 5);
-    }
-    // Lat (left)
-    ctx.textAlign = 'right';
-    for (let lat = -60; lat <= 60; lat += 30) {
-      if (lat === 0 || lat > parseInt(maxLat) || lat < -parseInt(maxLat)) continue;
-      const [x] = projectPoint(-180, lat, width, height);
-      const [, y] = projectPoint(-180, lat, width, height);
-      if (x < 15) ctx.fillText(`${lat}°`, 25, y + 3);
-    }
-
-
+    // Selected Location
     if (selectedLocation) {
-      const [x, y] = projectPoint(selectedLocation.lon, selectedLocation.lat, width, height);
+      const [x, y] = getPoint(selectedLocation.lon, selectedLocation.lat);
       ctx.beginPath();
-      ctx.arc(x, y, 10, 0, Math.PI * 2);
+      // Scale marker size inversely to zoom so it stays consistent visual size
+      const markerSize = 10 / viewState.zoom;
+      ctx.arc(x, y, markerSize, 0, Math.PI * 2);
       ctx.strokeStyle = '#fbbf24';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2 / viewState.zoom;
       ctx.stroke();
+
       ctx.beginPath();
-      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.arc(x, y, 3 / viewState.zoom, 0, Math.PI * 2);
       ctx.fillStyle = '#fbbf24';
       ctx.fill();
     }
-  }, [worldData, visibilityPoints, resolution, selectedLocation, darkMode, projectPoint, maxLat]);
+
+    // Axis Labels (scale font)
+    ctx.fillStyle = darkMode ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)';
+    ctx.font = `${10 / viewState.zoom}px Inter`;
+    ctx.textAlign = 'center';
+
+    // Only draw labels if zoom is low or they are in view? Simplification: draw all.
+    for (let lon = -150; lon < 180; lon += 30) {
+      const [x, y] = getPoint(lon, -88); // Near bottom
+      ctx.fillText(`${lon}°`, x, y);
+    }
+
+    ctx.restore(); // Restore context for next frame
+
+  }, [worldData, visibilityPoints, resolution, selectedLocation, darkMode, projectPoint, maxLat, viewState]);
 
   useEffect(() => {
     drawMap();
@@ -400,33 +451,100 @@ export default function Home() {
     }
   };
 
-  const handleMapClick = useCallback((clientX: number, clientY: number) => {
+  // Map Interaction Handlers (Pan & Zoom)
+  const handleMapWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const container = mapContainerRef.current;
+    if (!container) return;
+
+    const zoomSensitivity = 0.001;
+    const delta = -e.deltaY * zoomSensitivity;
+    setViewState(prev => {
+      const newZoom = Math.min(Math.max(1, prev.zoom + delta * prev.zoom), 10);
+      return { ...prev, zoom: newZoom };
+    });
+  }, []);
+
+  const handleMapPointerDown = useCallback((e: React.PointerEvent) => {
+    // Only drag with left click or touch
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    setViewState(prev => ({ ...prev, isDragging: true }));
+    lastMousePos.current = { x: e.clientX, y: e.clientY };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }, []);
+
+  const handleMapPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!viewState.isDragging || !lastMousePos.current) return;
+
+    const dx = e.clientX - lastMousePos.current.x;
+    const dy = e.clientY - lastMousePos.current.y;
+
+    lastMousePos.current = { x: e.clientX, y: e.clientY };
+
+    setViewState(prev => ({
+      ...prev,
+      offsetX: prev.offsetX + dx,
+      offsetY: prev.offsetY + dy
+    }));
+  }, [viewState.isDragging]);
+
+  const handleMapPointerUp = useCallback((e: React.PointerEvent) => {
+    setViewState(prev => ({ ...prev, isDragging: false }));
+    lastMousePos.current = null;
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+  }, []);
+
+  // Update click handler to account for Zoom/Pan
+  const handleMapClick = useCallback((e: React.MouseEvent) => {
+    // If we were dragging, don't treat as click
+    if (viewState.isDragging) return;
+
     const container = mapContainerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
 
-    // Simple projection inversion for click (approximate for Equal Area in this context for now)
-    // For proper equal area inversion we need math, but let's stick to simple ratio for MVP if Equirectangular.
-    // Ideally need inverse functions.
+    // Canvas center relative to rect
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
 
-    // Re-use existing projection logic for now
-    const projX = x / rect.width;
-    const projY = y / rect.height;
+    // Mouse pos relative to center, un-translated, un-scaled
+    const xRaw = e.clientX - rect.left - cx - viewState.offsetX;
+    const yRaw = e.clientY - rect.top - cy - viewState.offsetY;
 
-    let lon = projX * 360 - 180;
-    let lat = 90 - projY * 180;
+    const xUnscaled = xRaw / viewState.zoom;
+    const yUnscaled = yRaw / viewState.zoom;
+
+    // Aspect ratio logic (matches drawMap)
+    const aspect = 2; // Fixed aspect ratio 2:1
+    let mapWidth, mapHeight;
+
+    if (rect.width / rect.height > aspect) {
+      mapHeight = rect.height;
+      mapWidth = mapHeight * aspect;
+    } else {
+      mapWidth = rect.width;
+      mapHeight = mapWidth / aspect;
+    }
+
+    // Checking if click is within map bounds
+    if (Math.abs(xUnscaled) > mapWidth / 2 || Math.abs(yUnscaled) > mapHeight / 2) return;
+
+    // Normalize to [0, 1] relative to map top-left
+    const normX = (xUnscaled + mapWidth / 2) / mapWidth;
+    const normY = (yUnscaled + mapHeight / 2) / mapHeight;
+
+    let lon = normX * 360 - 180;
+    let lat = 90 - normY * 180;
 
     // Equal area inverse approximation
     if (projection === 'equalarea') {
-      const sinLat = 1 - 2 * projY;
+      const sinLat = 1 - 2 * normY;
       lat = Math.asin(Math.max(-1, Math.min(1, sinLat))) * 180 / Math.PI;
     }
 
     updateLocation(lat, lon);
     setShowSimulation(true);
-  }, [selectedDate, criterion, maxLat, projection]);
+  }, [selectedDate, criterion, maxLat, projection, viewState]);
 
   const handleCalculate = useCallback(async () => {
     setIsCalculating(true);
@@ -496,8 +614,13 @@ export default function Home() {
       {/* Map - LEFT */}
       <div
         ref={mapContainerRef}
-        className="flex-1 relative min-h-[50vh] md:min-h-0 cursor-crosshair bg-background"
-        onClick={(e) => handleMapClick(e.clientX, e.clientY)}
+        className="flex-1 relative min-h-[50vh] md:min-h-0 cursor-crosshair bg-background touch-none"
+        onClick={handleMapClick}
+        onWheel={handleMapWheel}
+        onPointerDown={handleMapPointerDown}
+        onPointerMove={handleMapPointerMove}
+        onPointerUp={handleMapPointerUp}
+        onPointerLeave={handleMapPointerUp}
       >
         <canvas ref={canvasRef} className="absolute inset-0" />
 
