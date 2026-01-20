@@ -1,4 +1,3 @@
-
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -19,7 +18,7 @@ export default function SettingsModal({
     onClose,
     locale,
     fontSize,
-    setFontSize
+    setFontSize,
 }: SettingsModalProps) {
     const t = getTranslations(locale);
     const isRTL = locale === 'ar';
@@ -42,6 +41,8 @@ export default function SettingsModal({
                 </DialogHeader>
 
                 <div className="space-y-6 py-4">
+
+
                     {/* Font Size Section */}
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
@@ -120,3 +121,4 @@ export default function SettingsModal({
         </Dialog>
     );
 }
+

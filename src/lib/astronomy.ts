@@ -43,6 +43,7 @@ export interface SimulationPoint {
     illumination: number;
     elongation: number;
     tilt: number;
+    moonAge?: number;
 }
 
 export interface OdehResult {
@@ -487,4 +488,472 @@ export function getSimulationTrajectory(
         console.error('Error generating simulation trajectory:', error);
         return null;
     }
+}
+
+/**
+ * Find the most recent new moon (geocentric conjunction) before a given date
+ */
+export function findRecentConjunction(
+    date: Date,
+    type: ConjunctionType = 'geocentric',
+    lat?: number,
+    lon?: number
+): Astronomy.AstroTime | null {
+    if (type === 'topocentric' && lat !== undefined && lon !== undefined) {
+        const result = findTopocentricConjunction(lat, lon, date, -30);
+        return result ? Astronomy.MakeTime(result.time) : null;
+    }
+    const time = Astronomy.MakeTime(date);
+    // Search backwards for new moon (phase = 0)
+    return Astronomy.SearchMoonPhase(0, time, -30);
+}
+
+/**
+ * Calculate moon age in hours since last conjunction
+ */
+export function calculateMoonAge(observationTime: Date, conjunctionTime: Date): number {
+    return (observationTime.getTime() - conjunctionTime.getTime()) / (1000 * 60 * 60);
+}
+
+/**
+ * Format moon age as hours and minutes string (e.g., "+16H 22M")
+ */
+export function formatMoonAge(hours: number): string {
+    const h = Math.floor(hours);
+    const m = Math.round((hours - h) * 60);
+    return `+${h}H ${m.toString().padStart(2, '0')}M`;
+}
+
+/**
+ * Format decimal degrees to degrees:minutes:seconds (DMS) format
+ * e.g., 248.3825 -> "+248°:22':57"" 
+ */
+export function formatDMS(degrees: number): string {
+    const sign = degrees >= 0 ? '+' : '-';
+    const abs = Math.abs(degrees);
+    const d = Math.floor(abs);
+    const mFloat = (abs - d) * 60;
+    const m = Math.floor(mFloat);
+    const s = Math.round((mFloat - m) * 60);
+    return `${sign}${d.toString().padStart(2, '0')}°:${m.toString().padStart(2, '0')}':${s.toString().padStart(2, '0')}"`;
+}
+
+/**
+ * Format coordinate to DMS string (e.g. "103:22:57.0")
+ */
+export function formatCoordinate(degrees: number): string {
+    const abs = Math.abs(degrees);
+    const d = Math.floor(abs);
+    const mFloat = (abs - d) * 60;
+    const m = Math.floor(mFloat);
+    const s = ((mFloat - m) * 60).toFixed(1);
+    return `${d.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.padStart(4, '0')}`;
+}
+
+/**
+ * Enhanced simulation data with conjunction, moonset, and moon age
+ */
+export interface EnhancedSimulationData {
+    sunsetIso: string;
+    moonsetIso: string | null;
+    conjunctionIso: string;
+    conjunctionLocal: string;
+    moonAgeHours: number;
+    conjunctionIsoGeo: string;
+    conjunctionLocalGeo: string;
+    moonAgeHoursGeo: number;
+    conjunctionIsoTopo: string | null;
+    conjunctionLocalTopo: string | null;
+    moonAgeHoursTopo: number | null;
+    trajectory: SimulationPoint[];
+    meta: {
+        lat: number;
+        lon: number;
+        locationName?: string;
+    };
+}
+
+/**
+ * Generate enhanced simulation trajectory with all astronomical data
+ */
+export function getEnhancedSimulationTrajectory(
+    lat: number,
+    lon: number,
+    year: number,
+    month: number,
+    day: number
+): EnhancedSimulationData | null {
+    try {
+        const sunset = findSunset(lat, lon, year, month, day);
+        if (!sunset) {
+            return null;
+        }
+
+        // Find recent conjunctions (Both Geo and Topo)
+        const conjGeo = findRecentConjunction(sunset.date, 'geocentric');
+        const conjTopo = findRecentConjunction(sunset.date, 'topocentric', lat, lon);
+
+        if (!conjGeo) {
+            return null;
+        }
+
+        const moonAgeGeo = calculateMoonAge(sunset.date, conjGeo.date);
+        const moonAgeTopo = conjTopo ? calculateMoonAge(sunset.date, conjTopo.date) : null;
+
+        // Find moonset after sunset
+        const moonset = findMoonset(lat, lon, sunset);
+
+        // Calculate timezone offset for local time display
+        const tzOffsetHours = Math.round(lon / 15);
+
+        const conjLocalGeo = new Date(conjGeo.date.getTime() + tzOffsetHours * 60 * 60 * 1000).toISOString();
+        const conjLocalTopo = conjTopo ? new Date(conjTopo.date.getTime() + tzOffsetHours * 60 * 60 * 1000).toISOString() : null;
+
+        const trajectory: SimulationPoint[] = [];
+        const observer = new Astronomy.Observer(lat, lon, 0);
+
+        // Generate 75 minutes of data (every 2 minutes)
+        for (let i = 0; i <= 75; i += 2) {
+            const offsetMs = i * 60 * 1000;
+            const timeDate = new Date(sunset.date.getTime() + offsetMs);
+            const time = Astronomy.MakeTime(timeDate);
+
+            // Get positions
+            const sunEquator = Astronomy.Equator(Astronomy.Body.Sun, time, observer, true, true);
+            const sunHorizon = Astronomy.Horizon(time, observer, sunEquator.ra, sunEquator.dec, 'normal');
+
+            const moonEquator = Astronomy.Equator(Astronomy.Body.Moon, time, observer, true, true);
+            const moonHorizon = Astronomy.Horizon(time, observer, moonEquator.ra, moonEquator.dec, 'normal');
+
+            const elongation = Astronomy.AngleBetween(
+                Astronomy.GeoVector(Astronomy.Body.Sun, time, true),
+                Astronomy.GeoVector(Astronomy.Body.Moon, time, true)
+            );
+
+            const illum = Astronomy.Illumination(Astronomy.Body.Moon, time);
+
+            // Calculate tilt
+            const dy = sunHorizon.altitude - moonHorizon.altitude;
+            const dx = (sunHorizon.azimuth - moonHorizon.azimuth) * Math.cos(moonHorizon.altitude * DEG2RAD);
+            const tiltFromRight = Math.atan2(dy, dx) * RAD2DEG;
+
+            // Calculate current moon age
+            // Calculate current moon age (using Geo for trajectory consistency)
+            const currentMoonAge = calculateMoonAge(timeDate, conjGeo.date);
+
+            trajectory.push({
+                timeOffsetMin: i,
+                sunAlt: sunHorizon.altitude,
+                sunAz: sunHorizon.azimuth,
+                moonAlt: moonHorizon.altitude,
+                moonAz: moonHorizon.azimuth,
+                illumination: illum.phase_fraction,
+                elongation,
+                tilt: 90 - tiltFromRight,
+                moonAge: currentMoonAge
+            });
+        }
+
+        return {
+            sunsetIso: sunset.date.toISOString(),
+            moonsetIso: moonset ? moonset.date.toISOString() : null,
+            conjunctionIso: conjGeo.date.toISOString(),
+            conjunctionLocal: conjLocalGeo,
+            moonAgeHours: moonAgeGeo,
+
+            conjunctionIsoGeo: conjGeo.date.toISOString(),
+            conjunctionLocalGeo: conjLocalGeo,
+            moonAgeHoursGeo: moonAgeGeo,
+
+            conjunctionIsoTopo: conjTopo ? conjTopo.date.toISOString() : null,
+            conjunctionLocalTopo: conjLocalTopo,
+            moonAgeHoursTopo: moonAgeTopo,
+
+            trajectory,
+            meta: { lat, lon }
+        };
+    } catch (error) {
+        console.error('Error generating enhanced simulation trajectory:', error);
+        return null;
+    }
+}
+
+/**
+ * Generate visibility interpretation text based on calculations
+ */
+export function generateVisibilityTranscript(
+    data: EnhancedSimulationData,
+    frame: SimulationPoint,
+    criterion: 'odeh' | 'yallop' | 'saao' | 'shaukat',
+    locale: 'en' | 'ar' = 'en'
+): string {
+    // Get visibility result
+    const arcv = frame.moonAlt - frame.sunAlt;
+    const wPrime = calcCrescentWidth(frame.elongation, frame.moonAlt, 384400); // Approximate moon distance
+
+    const odeh = odehCriterion(arcv, wPrime);
+    const yallop = yallopCriterion(frame.elongation, arcv, wPrime);
+
+    const moonAgeFormatted = formatMoonAge(data.moonAgeHours);
+    const moonAltDMS = formatDMS(frame.moonAlt);
+    const elongationDMS = formatDMS(frame.elongation);
+
+    // Format conjunction time for display
+    const conjDate = new Date(data.conjunctionLocal);
+    const conjFormatted = `${conjDate.getDate().toString().padStart(2, '0')}/${(conjDate.getMonth() + 1).toString().padStart(2, '0')}/${conjDate.getFullYear()}, ${conjDate.getHours().toString().padStart(2, '0')}:${conjDate.getMinutes().toString().padStart(2, '0')} LT`;
+
+    if (locale === 'ar') {
+        const zoneDescAr: Record<string, string> = {
+            'A': 'يمكن رؤيته بسهولة بالعين المجردة',
+            'B': 'قد يُرى بالعين المجردة في ظروف جيدة',
+            'C': 'يتطلب أجهزة بصرية للرؤية',
+            'D': 'لا يمكن رؤيته'
+        };
+
+        return `تحليل الرؤية
+
+حدث الاقتران (القمر الجديد) في: ${conjFormatted}
+عند غروب الشمس، كان عمر القمر ${moonAgeFormatted}
+ارتفاع القمر: ${moonAltDMS}
+الاستطالة: ${elongationDMS}
+
+تقييم الرؤية (معيار ${criterion === 'odeh' ? 'عودة' : criterion === 'yallop' ? 'يالوب' : 'جنوب أفريقيا'}):
+المنطقة ${odeh.zone}: ${zoneDescAr[odeh.zone]}
+
+${odeh.zone === 'A' || odeh.zone === 'B' ? 'الهلال من المرجح أن يكون مرئياً.' : 'الهلال غير مرئي أو يتطلب أجهزة بصرية.'}`;
+    }
+
+    const zoneDescEn: Record<string, string> = {
+        'A': 'Easily visible to naked eye',
+        'B': 'May be visible to naked eye under good conditions',
+        'C': 'Requires optical aid for visibility',
+        'D': 'Not visible'
+    };
+
+    return `Visibility Analysis
+
+The geocentric conjunction (new moon) occurred on: ${conjFormatted}
+At sunset, the moon was ${moonAgeFormatted} old.
+Moon altitude: ${moonAltDMS}
+Elongation: ${elongationDMS}
+
+Visibility Assessment (${criterion.charAt(0).toUpperCase() + criterion.slice(1)} Criterion):
+Zone ${odeh.zone}: ${zoneDescEn[odeh.zone]}
+
+${odeh.zone === 'A' || odeh.zone === 'B' ? 'The crescent is likely to be visible.' : 'The crescent is not visible or requires optical aid.'}`;
+}
+
+// ============================================
+// CONJUNCTION CALCULATIONS (Geocentric vs Topocentric)
+// ============================================
+
+export type ConjunctionType = 'geocentric' | 'topocentric';
+
+export interface ConjunctionResult {
+    time: Date;
+    type: ConjunctionType;
+    moonPhase: number; // Moon phase angle at conjunction (should be ~0)
+}
+
+export interface ConjunctionComparison {
+    geocentric: ConjunctionResult;
+    topocentric: ConjunctionResult;
+    differenceMinutes: number;
+    differenceHours: number;
+    topocentricIsEarlier: boolean;
+}
+
+/**
+ * Find the geocentric new moon (conjunction) closest to the given date
+ * Geocentric = as seen from Earth's center
+ */
+export function findGeocentricConjunction(
+    startDate: Date,
+    limitDays: number = 35
+): ConjunctionResult | null {
+    try {
+        const startTime = Astronomy.MakeTime(startDate);
+
+        // SearchMoonPhase finds when moon reaches specific phase
+        // Phase 0 = new moon (geocentric conjunction)
+        const conjunction = Astronomy.SearchMoonPhase(0, startTime, limitDays);
+
+        if (!conjunction) {
+            return null;
+        }
+
+        // Verify the phase at this time
+        const moonPhase = Astronomy.MoonPhase(conjunction);
+
+        return {
+            time: conjunction.date,
+            type: 'geocentric',
+            moonPhase
+        };
+    } catch (error) {
+        console.error('Error finding geocentric conjunction:', error);
+        return null;
+    }
+}
+
+/**
+ * Calculate the topocentric ecliptic longitude difference between Sun and Moon
+ * Returns the difference in degrees (0 at conjunction)
+ */
+function getTopocentricLongitudeDifference(
+    lat: number,
+    lon: number,
+    time: Astronomy.AstroTime
+): number {
+    const observer = new Astronomy.Observer(lat, lon, 0);
+
+    // Get topocentric equatorial coordinates for both bodies
+    const sunEquator = Astronomy.Equator(Astronomy.Body.Sun, time, observer, true, true);
+    const moonEquator = Astronomy.Equator(Astronomy.Body.Moon, time, observer, true, true);
+
+    // Convert to ecliptic coordinates
+    // We use the ecliptic-from-equator rotation
+    const sunEcliptic = Astronomy.EclipticGeoMoon(time); // For comparison
+    const moonEcliptic = Astronomy.EclipticGeoMoon(time);
+
+    // For a proper topocentric calculation, we need to compute ecliptic longitude
+    // from the topocentric equatorial coordinates
+    // Using obliquity to convert RA/Dec to ecliptic lon/lat
+    const obliquity = 23.439291111 * DEG2RAD; // Mean obliquity (approximate)
+
+    // Sun ecliptic longitude (topocentric approximation - Sun parallax is negligible)
+    // We use SunPosition to get the geocentric ecliptic longitude
+    const sunPos = Astronomy.SunPosition(time);
+    const sunLon = sunPos.elon;
+
+    // Moon ecliptic longitude with topocentric correction
+    // Convert Moon's topocentric RA/Dec to ecliptic longitude
+    const moonRaRad = moonEquator.ra * 15 * DEG2RAD; // RA in hours to radians
+    const moonDecRad = moonEquator.dec * DEG2RAD;
+
+    // Ecliptic longitude from equatorial: tan(λ) = (sin(α)cos(ε) + tan(δ)sin(ε)) / cos(α)
+    const sinRa = Math.sin(moonRaRad);
+    const cosRa = Math.cos(moonRaRad);
+    const tanDec = Math.tan(moonDecRad);
+    const sinObl = Math.sin(obliquity);
+    const cosObl = Math.cos(obliquity);
+
+    let moonLon = Math.atan2(sinRa * cosObl + tanDec * sinObl, cosRa) * RAD2DEG;
+    if (moonLon < 0) moonLon += 360;
+
+    // Calculate difference (normalized to -180 to 180)
+    let diff = moonLon - sunLon;
+    while (diff > 180) diff -= 360;
+    while (diff < -180) diff += 360;
+
+    return diff;
+}
+
+/**
+ * Find the topocentric new moon (conjunction) for a specific observer location
+ * Topocentric = as seen from observer's location on Earth's surface
+ */
+export function findTopocentricConjunction(
+    lat: number,
+    lon: number,
+    startDate: Date,
+    limitDays: number = 35
+): ConjunctionResult | null {
+    try {
+        // First find the geocentric conjunction as a starting point
+        const geocentric = findGeocentricConjunction(startDate, limitDays);
+        if (!geocentric) {
+            return null;
+        }
+
+        // Search around the geocentric time for the topocentric conjunction
+        // The difference is typically within a few hours
+        const searchStart = new Date(geocentric.time.getTime() - 12 * 60 * 60 * 1000); // 12 hours before
+        const t1 = Astronomy.MakeTime(searchStart);
+        const t2 = t1.AddDays(1); // Search window of 1 day
+
+        // Use Astronomy.Search to find when longitude difference crosses zero
+        const conjunction = Astronomy.Search(
+            (t: Astronomy.AstroTime) => getTopocentricLongitudeDifference(lat, lon, t),
+            t1,
+            t2
+        );
+
+        if (!conjunction) {
+            // Fallback to geocentric if search fails
+            return {
+                time: geocentric.time,
+                type: 'topocentric',
+                moonPhase: geocentric.moonPhase
+            };
+        }
+
+        const moonPhase = Astronomy.MoonPhase(conjunction);
+
+        return {
+            time: conjunction.date,
+            type: 'topocentric',
+            moonPhase
+        };
+    } catch (error) {
+        console.error('Error finding topocentric conjunction:', error);
+        return null;
+    }
+}
+
+/**
+ * Get comparison between geocentric and topocentric conjunction times
+ * This is useful for showing users the difference based on their location
+ */
+export function getConjunctionComparison(
+    lat: number,
+    lon: number,
+    referenceDate: Date
+): ConjunctionComparison | null {
+    try {
+        // Find geocentric conjunction
+        const geocentric = findGeocentricConjunction(referenceDate, 35);
+        if (!geocentric) {
+            return null;
+        }
+
+        // Find topocentric conjunction for the observer
+        const topocentric = findTopocentricConjunction(lat, lon, referenceDate, 35);
+        if (!topocentric) {
+            return null;
+        }
+
+        // Calculate difference in minutes
+        const diffMs = topocentric.time.getTime() - geocentric.time.getTime();
+        const differenceMinutes = diffMs / (1000 * 60);
+        const differenceHours = differenceMinutes / 60;
+
+        return {
+            geocentric,
+            topocentric,
+            differenceMinutes: Math.abs(differenceMinutes),
+            differenceHours: Math.abs(differenceHours),
+            topocentricIsEarlier: diffMs < 0
+        };
+    } catch (error) {
+        console.error('Error calculating conjunction comparison:', error);
+        return null;
+    }
+}
+
+/**
+ * Get the next new moon date based on conjunction type
+ */
+export function getNextNewMoon(
+    referenceDate: Date,
+    conjunctionType: ConjunctionType,
+    observer?: { lat: number; lon: number }
+): Date | null {
+    if (conjunctionType === 'topocentric' && observer) {
+        const result = findTopocentricConjunction(observer.lat, observer.lon, referenceDate);
+        return result?.time || null;
+    }
+
+    const result = findGeocentricConjunction(referenceDate);
+    return result?.time || null;
 }

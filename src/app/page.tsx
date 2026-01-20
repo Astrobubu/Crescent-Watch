@@ -21,9 +21,10 @@ import SettingsModal from '@/components/settings-modal';
 import {
   generateVisibilityGrid,
   calculateVisibilityPoint,
-  getSimulationTrajectory,
+  getEnhancedSimulationTrajectory,
   VisibilityPoint,
-  SimulationPoint
+  SimulationPoint,
+  getConjunctionComparison
 } from '@/lib/astronomy';
 import { toHijri, formatHijriDate, getObservationDates, HIJRI_MONTHS, HIJRI_MONTHS_AR } from '@/lib/hijri';
 import { getTranslations, Locale } from '@/lib/i18n';
@@ -46,6 +47,7 @@ export default function Home() {
   const [fontSize, setFontSize] = useState(1.1); // Default 1.1rem
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+
   // Update HTML dir and lang for correct font/RTL support
   // Update HTML lang for correct font support, but keep dir LTR for layout stability
   // We handle RTL manually for specific elements
@@ -59,9 +61,10 @@ export default function Home() {
     // Default browser font size is 100% (16px). We scale this.
     document.documentElement.style.fontSize = `${fontSize * 100}%`;
 
+    // Aggressively force font for Arabic
     if (locale === 'ar') {
       document.body.classList.add('font-arabic');
-      document.body.style.setProperty('font-family', 'var(--font-tajawal), sans-serif', 'important');
+      document.body.style.setProperty('font-family', 'var(--font-tajawal), "Tajawal", sans-serif', 'important');
     } else {
       document.body.classList.remove('font-arabic');
       document.body.style.removeProperty('font-family');
@@ -93,12 +96,18 @@ export default function Home() {
     if (savedSize) {
       setFontSize(parseFloat(savedSize));
     }
+
+    if (savedSize) {
+      setFontSize(parseFloat(savedSize));
+    }
   }, []);
 
   // Persist font size
   useEffect(() => {
     localStorage.setItem('crescent-fontsize', fontSize.toString());
   }, [fontSize]);
+
+
 
   const [projection, setProjection] = useState<MapProjection>('equirectangular');
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
@@ -176,8 +185,10 @@ export default function Home() {
   const hijriDate = useMemo(() => toHijri(selectedDate), [selectedDate]);
 
   const observationDates = useMemo(() =>
-    getObservationDates(selectedHijriYear, selectedHijriMonth),
-    [selectedHijriYear, selectedHijriMonth]
+    getObservationDates(selectedHijriYear, selectedHijriMonth, {
+      observer: selectedLocation || undefined
+    }),
+    [selectedHijriYear, selectedHijriMonth, selectedLocation]
   );
 
   const upcomingMonths = useMemo(() => {
@@ -210,7 +221,9 @@ export default function Home() {
     const [yearStr, monthStr] = val.split('-');
     setSelectedHijriYear(parseInt(yearStr));
     setSelectedHijriMonth(parseInt(monthStr));
-    const dates = getObservationDates(parseInt(yearStr), parseInt(monthStr));
+    const dates = getObservationDates(parseInt(yearStr), parseInt(monthStr), {
+      observer: selectedLocation || undefined
+    });
     if (dates[1]) setSelectedDate(dates[1]);
   };
 
@@ -376,12 +389,9 @@ export default function Home() {
     const point = calculateVisibilityPoint(clampedLat, clampedLon, selectedDate.getFullYear(), selectedDate.getMonth() + 1, selectedDate.getDate(), criterion);
     setLocationData(point);
 
-    const simData = getSimulationTrajectory(clampedLat, clampedLon, selectedDate.getFullYear(), selectedDate.getMonth() + 1, selectedDate.getDate());
+    const simData = getEnhancedSimulationTrajectory(clampedLat, clampedLon, selectedDate.getFullYear(), selectedDate.getMonth() + 1, selectedDate.getDate());
     if (simData) {
-      setSimulationData({
-        ...simData,
-        meta: { lat: newLoc.lat, lon: newLoc.lon }
-      });
+      setSimulationData(simData);
     } else {
       setSimulationData(null);
     }
@@ -613,6 +623,8 @@ export default function Home() {
                 </Select>
               </div>
             </div>
+
+
 
             {/* Calculate Button - Remove Eye Icon */}
             <div className="pt-4">

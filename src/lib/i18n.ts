@@ -95,6 +95,43 @@ export interface Translations {
     version: string;
     contact: string;
     reset: string;
+
+    // Conjunction
+    conjunctionType: string;
+    geocentric: string;
+    topocentric: string;
+    conjunctionInfo: string;
+    conjunctionTime: string;
+    geocentricConjunction: string;
+    topocentricConjunction: string;
+    conjunctionDifference: string;
+    earlier: string;
+    later: string;
+
+    // Advanced Details & Reports
+    advancedSettings: string;
+    advancedDetails: string;
+    showDetails: string;
+    hideDetails: string;
+    moonAzimuth: string;
+    sunAzimuth: string;
+    downloadReport: string;
+    visibilityReport: string;
+    visibilityAnalysis: string;
+    conjunctionOccurred: string;
+    atSunset: string;
+    visibilityAssessment: string;
+    crescentVisible: string;
+    crescentNotVisible: string;
+    observation: string;
+    newMoon: string;
+    waxingCrescent: string;
+    moonHeight: string;
+    moonAgeLabel: string;
+    amount: string;
+    setTime: string;
+    moonAzLabel: string;
+    sunAzLabel: string;
 }
 
 const translations: Record<Locale, Translations> = {
@@ -180,7 +217,44 @@ const translations: Record<Locale, Translations> = {
         projectLead: 'Project Lead',
         version: 'Version',
         contact: 'Contact',
-        reset: 'Reset Defaults'
+        reset: 'Reset Defaults',
+
+        // Conjunction
+        conjunctionType: 'New Moon Calculation',
+        geocentric: 'Geocentric (Earth center)',
+        topocentric: 'Topocentric (Observer location)',
+        conjunctionInfo: 'Geocentric uses Earth\'s center; topocentric accounts for observer parallax',
+        conjunctionTime: 'Conjunction Time',
+        geocentricConjunction: 'Geocentric Conjunction',
+        topocentricConjunction: 'Topocentric Conjunction',
+        conjunctionDifference: 'Difference',
+        earlier: 'earlier',
+        later: 'later',
+
+        // Advanced Details & Reports
+        advancedSettings: 'Advanced Settings',
+        advancedDetails: 'Advanced Details',
+        showDetails: 'Show Details',
+        hideDetails: 'Hide Details',
+        moonAzimuth: 'Moon Azimuth',
+        sunAzimuth: 'Sun Azimuth',
+        downloadReport: 'Download Report',
+        visibilityReport: 'Visibility Report',
+        visibilityAnalysis: 'Visibility Analysis',
+        conjunctionOccurred: 'Conjunction occurred on',
+        atSunset: 'At sunset, moon age was',
+        visibilityAssessment: 'Visibility Assessment',
+        crescentVisible: 'The crescent is likely visible',
+        crescentNotVisible: 'The crescent requires optical aid or is not visible',
+        observation: 'Observation Data',
+        newMoon: 'New Moon',
+        waxingCrescent: 'Waxing Crescent',
+        moonHeight: 'Moon Height',
+        moonAgeLabel: 'Moon Age',
+        amount: 'Amount',
+        setTime: 'Set Time',
+        moonAzLabel: 'Moon Azimuth',
+        sunAzLabel: 'Sun Azimuth',
     },
     ar: {
         appName: 'رصد الهلال',
@@ -264,7 +338,44 @@ const translations: Record<Locale, Translations> = {
         projectLead: 'إشراف',
         version: 'الإصدار',
         contact: 'تواصل معنا',
-        reset: 'المعدلات الافتراضية'
+        reset: 'المعدلات الافتراضية',
+
+        // Conjunction
+        conjunctionType: 'حساب المحاق',
+        geocentric: 'مركز الأرض',
+        topocentric: 'موقع الراصد',
+        conjunctionInfo: 'مركز الأرض يستخدم مركز الأرض؛ موقع الراصد يحسب اختلاف المنظر',
+        conjunctionTime: 'وقت الاقتران',
+        geocentricConjunction: 'الاقتران الجيوسنتري',
+        topocentricConjunction: 'الاقتران الطوبوسنتري',
+        conjunctionDifference: 'الفرق',
+        earlier: 'قبل',
+        later: 'بعد',
+
+        // Advanced Details & Reports
+        advancedSettings: 'إعدادات متقدمة',
+        advancedDetails: 'التفاصيل المتقدمة',
+        showDetails: 'إظهار التفاصيل',
+        hideDetails: 'إخفاء التفاصيل',
+        moonAzimuth: 'سمت القمر',
+        sunAzimuth: 'سمت الشمس',
+        downloadReport: 'تحميل التقرير',
+        visibilityReport: 'تقرير الرؤية',
+        visibilityAnalysis: 'تحليل الرؤية',
+        conjunctionOccurred: 'حدث الاقتران في',
+        atSunset: 'عند الغروب، كان عمر القمر',
+        visibilityAssessment: 'تقييم الرؤية',
+        crescentVisible: 'الهلال مرجح أن يكون مرئياً',
+        crescentNotVisible: 'الهلال يتطلب أجهزة بصرية أو غير مرئي',
+        observation: 'بيانات الرصد',
+        newMoon: 'محاق',
+        waxingCrescent: 'هلال متزايد',
+        moonHeight: 'ارتفاع القمر',
+        moonAgeLabel: 'عمر القمر',
+        amount: 'المقدار',
+        setTime: 'وقت الغروب',
+        moonAzLabel: 'سمت القمر',
+        sunAzLabel: 'سمت الشمس',
     }
 };
 

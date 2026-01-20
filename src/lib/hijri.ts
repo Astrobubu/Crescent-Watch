@@ -2,6 +2,12 @@
  * Crescent Watch - Hijri Calendar Utilities
  */
 
+import {
+    findGeocentricConjunction,
+    findTopocentricConjunction,
+    ConjunctionType
+} from './astronomy';
+
 export interface HijriDate {
     year: number;
     month: number;
@@ -46,11 +52,23 @@ export function toHijri(date: Date): HijriDate {
     };
 }
 
+export interface ObservationDatesOptions {
+    conjunctionType?: ConjunctionType;
+    observer?: { lat: number; lon: number };
+}
+
 /**
  * Get estimated observation dates for a Hijri month
- * Uses synodic month calculation from a reference new moon
+ * Uses synodic month calculation from a reference new moon,
+ * or precise astronomical calculation if conjunctionType is specified
  */
-export function getObservationDates(hijriYear: number, hijriMonth: number): Date[] {
+export function getObservationDates(
+    hijriYear: number,
+    hijriMonth: number,
+    options?: ObservationDatesOptions
+): Date[] {
+    const { conjunctionType = 'geocentric', observer } = options || {};
+
     // Reference: New moon on January 29, 2025 at roughly 12:36 UTC
     // This corresponds to Sha'ban 1446
     const referenceNewMoon = new Date(Date.UTC(2025, 0, 29, 12, 36, 0));
@@ -64,9 +82,27 @@ export function getObservationDates(hijriYear: number, hijriMonth: number): Date
     const targetMonthsFromEpoch = (hijriYear - 1) * 12 + (hijriMonth - 1);
     const monthsDiff = targetMonthsFromEpoch - refMonthsFromEpoch;
 
-    // Calculate target new moon date
+    // Calculate approximate target new moon date
     const daysDiff = monthsDiff * synodicMonth;
-    const targetNewMoon = new Date(referenceNewMoon.getTime() + daysDiff * 24 * 60 * 60 * 1000);
+    let targetNewMoon = new Date(referenceNewMoon.getTime() + daysDiff * 24 * 60 * 60 * 1000);
+
+    // If a conjunction type is specified, use precise astronomical calculation
+    try {
+        if (conjunctionType === 'topocentric' && observer) {
+            const precise = findTopocentricConjunction(observer.lat, observer.lon, targetNewMoon, 5);
+            if (precise) {
+                targetNewMoon = precise.time;
+            }
+        } else {
+            const precise = findGeocentricConjunction(targetNewMoon, 5);
+            if (precise) {
+                targetNewMoon = precise.time;
+            }
+        }
+    } catch (error) {
+        // Fallback to synodic approximation if astronomical calculation fails
+        console.warn('Using synodic approximation for observation dates:', error);
+    }
 
     // Return potential observation dates (evening of new moon and next 2 days)
     const dates: Date[] = [];
