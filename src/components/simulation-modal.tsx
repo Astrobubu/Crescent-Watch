@@ -831,19 +831,25 @@ export default function SimulationModal({
                         ctx.fillRect(bx + bw * 0.2, by, bw * 0.6, bh * 0.15);
                     }
 
-                    // Windows (sparse, randomized by position)
-                    if (bh > 10 && bw > 3) {
-                        ctx.fillStyle = 'rgba(255, 240, 180, 0.35)';
-                        const winRows = Math.floor(bh / 6);
-                        const winCols = Math.max(1, Math.floor(bw / 4));
-                        for (let r = 1; r < winRows; r++) {
-                            for (let c = 0; c < winCols; c++) {
-                                // Deterministic random based on building position
+                    // Windows (fixed grid based on building geometry, not pixels)
+                    if (bh > 8 && bw > 2) {
+                        ctx.fillStyle = 'rgba(255, 240, 180, 0.4)';
+                        // Fixed number of window rows/cols per building (based on building's inherent properties)
+                        const winRows = 8;
+                        const winCols = 3;
+                        const winW = bw * 0.08;
+                        const winH = bh * 0.03;
+                        const rowSpacing = bh / (winRows + 1);
+                        const colSpacing = bw / (winCols + 1);
+
+                        for (let r = 1; r <= winRows; r++) {
+                            for (let c = 1; c <= winCols; c++) {
+                                // Deterministic random based on building azimuth position + grid
                                 const hash = Math.sin(b.x * 12.9898 + r * 78.233 + c * 37.719) * 43758.5453;
-                                if ((hash - Math.floor(hash)) > 0.7) {
-                                    const wx = bx + 2 + c * (bw / winCols);
-                                    const wy = by + r * 6;
-                                    ctx.fillRect(wx, wy, 2, 3);
+                                if ((hash - Math.floor(hash)) > 0.65) {
+                                    const wx = bx + c * colSpacing - winW / 2;
+                                    const wy = by + r * rowSpacing - winH / 2;
+                                    ctx.fillRect(wx, wy, Math.max(1, winW), Math.max(1, winH));
                                 }
                             }
                         }
