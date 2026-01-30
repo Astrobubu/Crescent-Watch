@@ -958,11 +958,14 @@ export default function SimulationModal({
             const currentDate = new Date(new Date(data.sunsetIso).getTime() + timeOffset * 60000);
             const moonRaDec = getMoonRaDec(currentDate);
 
+            // Time offset in hours for moon age calculation
+            const timeOffsetHours = timeOffset / 60;
+
             const observationItems = [
                 { label: t.sunsetTime, value: data.sunsetIso ? new Date(data.sunsetIso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) : '--:--' },
                 { label: t.moonsetTime, value: data.moonsetIso ? new Date(data.moonsetIso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) : '--:--' },
                 { label: 'Lag Time', value: lagTimeStr },
-                { label: t.moonAge, value: data.moonAgeHoursTopo !== undefined && data.moonAgeHoursTopo !== null ? formatNum(data.moonAgeHoursTopo.toFixed(2)) + ' h' : '--' },
+                { label: t.moonAge, value: data.moonAgeHoursTopo !== undefined && data.moonAgeHoursTopo !== null ? formatNum((data.moonAgeHoursTopo + timeOffsetHours).toFixed(2)) + ' h' : '--' },
                 { label: t.illumination, value: formatNum((frame.illumination * 100).toFixed(1)) + '%' },
                 { label: t.sunAltitude, value: formatNum((frame.sunAlt).toFixed(2)) + '°' },
                 { label: t.moonAzimuth, value: formatDMS(frame.moonAz).replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٩'.indexOf(d)]) },
@@ -996,7 +999,7 @@ export default function SimulationModal({
 
             const topoItems = [
                 { label: t.conjunctionTime, value: data.conjunctionLocalTopo ? formatLocalTime(data.conjunctionLocalTopo) : '--' },
-                { label: t.moonAge, value: data.moonAgeHoursTopo !== undefined && data.moonAgeHoursTopo !== null ? formatNum(data.moonAgeHoursTopo.toFixed(2)) + ' h' : '--' },
+                { label: t.moonAge, value: data.moonAgeHoursTopo !== undefined && data.moonAgeHoursTopo !== null ? formatNum((data.moonAgeHoursTopo + timeOffsetHours).toFixed(2)) + ' h' : '--' },
             ];
 
             topoItems.forEach(item => {
@@ -1020,7 +1023,7 @@ export default function SimulationModal({
 
             const geoItems = [
                 { label: t.conjunctionTime, value: data.conjunctionLocalGeo ? formatLocalTime(data.conjunctionLocalGeo) : '--' },
-                { label: t.moonAge, value: data.moonAgeHoursGeo !== undefined ? formatNum(data.moonAgeHoursGeo.toFixed(2)) + ' h' : '--' },
+                { label: t.moonAge, value: data.moonAgeHoursGeo !== undefined ? formatNum((data.moonAgeHoursGeo + timeOffsetHours).toFixed(2)) + ' h' : '--' },
             ];
 
             geoItems.forEach(item => {
