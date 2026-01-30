@@ -79,100 +79,48 @@ function generateStars(count: number, seed: number): Array<{ x: number, y: numbe
 
 // Building type for skyline
 interface SkylineBuilding {
-    type: string;
-    x: number;
-    w: number;
-    h: number;
-    variant?: number;
+    x: number;      // azimuth position in degrees
+    w: number;      // width in degrees
+    h: number;      // height (0-1 normalized)
+    style: number;  // 0-3 for different tops
 }
 
-// Generate realistic Dubai Skyline
-function generateDubaiSkyline(width: number, seed: number): SkylineBuilding[] {
+// Seeded random number generator
+function seededRandom(seed: number) {
+    let s = seed;
+    return () => {
+        s = (s * 1103515245 + 12345) & 0x7fffffff;
+        return s / 0x7fffffff;
+    };
+}
+
+// Generate procedural city skyline across entire 360° horizon
+function generateCitySkyline(seed: number = 42): SkylineBuilding[] {
     const buildings: SkylineBuilding[] = [];
-    const scale = width / 2000; // Scale factor for different canvas widths
+    const rand = seededRandom(seed);
 
-    // === DOWNTOWN CLUSTER (Left side - ~15% of view) ===
-    const downtown = 300 * scale;
+    // Cover full 360 degrees with buildings
+    let az = 0;
+    while (az < 360) {
+        // Random building width (0.3 to 1.5 degrees)
+        const w = 0.3 + rand() * 1.2;
 
-    // Burj Khalifa - The iconic centerpiece
-    buildings.push({ type: 'khalifa', x: downtown, w: 45 * scale, h: 450 * scale });
+        // Random height with clustering (some areas taller)
+        const clusterFactor = Math.sin(az * Math.PI / 60) * 0.3 + 0.7; // Creates height variation zones
+        const baseHeight = 0.1 + rand() * 0.5 * clusterFactor;
 
-    // Address Downtown & surrounding towers
-    buildings.push({ type: 'tower', x: downtown - 60 * scale, w: 28 * scale, h: 220 * scale, variant: 1 });
-    buildings.push({ type: 'tower', x: downtown + 55 * scale, w: 30 * scale, h: 200 * scale, variant: 2 });
-    buildings.push({ type: 'tower', x: downtown - 100 * scale, w: 25 * scale, h: 180 * scale, variant: 3 });
-    buildings.push({ type: 'tower', x: downtown + 100 * scale, w: 26 * scale, h: 175 * scale, variant: 4 });
+        // Occasional tall towers
+        const isTall = rand() > 0.85;
+        const h = isTall ? baseHeight + 0.3 + rand() * 0.3 : baseHeight;
 
-    // Index Tower
-    buildings.push({ type: 'tower', x: downtown + 150 * scale, w: 32 * scale, h: 240 * scale, variant: 5 });
+        // Random style (0-3)
+        const style = Math.floor(rand() * 4);
 
-    // Emirates Towers
-    buildings.push({ type: 'emirates', x: downtown + 220 * scale, w: 35 * scale, h: 280 * scale });
-    buildings.push({ type: 'emirates', x: downtown + 260 * scale, w: 30 * scale, h: 240 * scale });
+        buildings.push({ x: az, w, h: Math.min(h, 1), style });
 
-    // === SHEIKH ZAYED ROAD CLUSTER (Middle section) ===
-    const szr = 700 * scale;
-
-    // Dubai Frame
-    buildings.push({ type: 'frame', x: szr, w: 70 * scale, h: 150 * scale });
-
-    // Various towers along SZR
-    buildings.push({ type: 'tower', x: szr - 100 * scale, w: 28 * scale, h: 200 * scale, variant: 6 });
-    buildings.push({ type: 'tower', x: szr - 60 * scale, w: 24 * scale, h: 170 * scale, variant: 7 });
-    buildings.push({ type: 'tower', x: szr + 100 * scale, w: 30 * scale, h: 190 * scale, variant: 8 });
-    buildings.push({ type: 'tower', x: szr + 150 * scale, w: 26 * scale, h: 160 * scale, variant: 9 });
-
-    // Low buildings / malls
-    buildings.push({ type: 'low', x: szr - 150 * scale, w: 60 * scale, h: 40 * scale });
-    buildings.push({ type: 'low', x: szr + 200 * scale, w: 50 * scale, h: 35 * scale });
-
-    // === MARINA CLUSTER (Right side) ===
-    const marina = 1400 * scale;
-
-    // Princess Tower (tallest residential)
-    buildings.push({ type: 'princess', x: marina - 100 * scale, w: 35 * scale, h: 320 * scale });
-
-    // Cayan Tower (the twisted one)
-    buildings.push({ type: 'cayan', x: marina, w: 32 * scale, h: 280 * scale });
-
-    // Marina 101
-    buildings.push({ type: 'tower', x: marina + 60 * scale, w: 30 * scale, h: 300 * scale, variant: 10 });
-
-    // The Torch
-    buildings.push({ type: 'tower', x: marina - 50 * scale, w: 28 * scale, h: 290 * scale, variant: 11 });
-
-    // Ocean Heights
-    buildings.push({ type: 'tower', x: marina + 120 * scale, w: 34 * scale, h: 260 * scale, variant: 12 });
-
-    // Marina towers cluster
-    buildings.push({ type: 'marina', x: marina - 150 * scale, w: 26 * scale, h: 220 * scale });
-    buildings.push({ type: 'marina', x: marina + 180 * scale, w: 28 * scale, h: 200 * scale });
-    buildings.push({ type: 'marina', x: marina + 230 * scale, w: 24 * scale, h: 180 * scale });
-
-    // === JUMEIRAH / BURJ AL ARAB (Far right) ===
-    const jumeirah = 1750 * scale;
-
-    // Burj Al Arab (sail-shaped icon)
-    buildings.push({ type: 'arab', x: jumeirah, w: 65 * scale, h: 280 * scale });
-
-    // Jumeirah Beach Hotel
-    buildings.push({ type: 'tower', x: jumeirah - 80 * scale, w: 50 * scale, h: 120 * scale, variant: 13 });
-
-    // === FILL IN GAPS ===
-    buildings.push({ type: 'low', x: 480 * scale, w: 40 * scale, h: 60 * scale });
-    buildings.push({ type: 'tower', x: 540 * scale, w: 22 * scale, h: 130 * scale, variant: 14 });
-    buildings.push({ type: 'low', x: 600 * scale, w: 35 * scale, h: 45 * scale });
-    buildings.push({ type: 'tower', x: 950 * scale, w: 24 * scale, h: 140 * scale, variant: 15 });
-    buildings.push({ type: 'low', x: 1020 * scale, w: 45 * scale, h: 50 * scale });
-    buildings.push({ type: 'tower', x: 1100 * scale, w: 26 * scale, h: 160 * scale, variant: 16 });
-    buildings.push({ type: 'low', x: 1180 * scale, w: 55 * scale, h: 55 * scale });
-    buildings.push({ type: 'tower', x: 1250 * scale, w: 23 * scale, h: 135 * scale, variant: 17 });
-
-    // Far edges
-    buildings.push({ type: 'low', x: 80 * scale, w: 50 * scale, h: 50 * scale });
-    buildings.push({ type: 'tower', x: 150 * scale, w: 20 * scale, h: 100 * scale, variant: 18 });
-    buildings.push({ type: 'low', x: 1880 * scale, w: 60 * scale, h: 40 * scale });
-    buildings.push({ type: 'tower', x: 1950 * scale, w: 22 * scale, h: 90 * scale, variant: 19 });
+        // Small gap between buildings (0 to 0.3 degrees)
+        az += w + rand() * 0.3;
+    }
 
     return buildings;
 }
@@ -478,10 +426,8 @@ export default function SimulationModal({
 
 
     const skyline = useMemo(() => {
-        // Dubai skyline doesn't really depend on data/loc unless we want global?
-        // User asked for "Rough Dubai Skyline". We'll just generate it.
-        // Pass width 2000 for standard reference.
-        return generateDubaiSkyline(2000, 12345);
+        // Generate procedural city skyline covering full 360° horizon
+        return generateCitySkyline(12345);
     }, []);
 
     // Get current frame based on time offset
@@ -684,53 +630,78 @@ export default function SimulationModal({
             ctx.translate(moonPos.x, moonPos.y);
             ctx.rotate((frame.tilt - 90) * Math.PI / 180);
 
-            // Earthshine
+            const r = moonRadius;
+            const k = frame.illumination; // 0 = new moon, 0.5 = half, 1 = full
+
+            // Outer glow (atmospheric effect)
+            const glowGrad = ctx.createRadialGradient(0, 0, r * 0.8, 0, 0, r * 1.5);
+            glowGrad.addColorStop(0, 'rgba(255, 252, 240, 0.15)');
+            glowGrad.addColorStop(1, 'rgba(255, 252, 240, 0)');
+            ctx.fillStyle = glowGrad;
             ctx.beginPath();
-            ctx.arc(0, 0, moonRadius, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(30, 35, 45, 0.95)';
+            ctx.arc(0, 0, r * 1.5, 0, Math.PI * 2);
             ctx.fill();
 
-            // Moon Texture (Maria/Craters) - subtle darker patches
-            ctx.fillStyle = 'rgba(20, 25, 35, 0.6)';
-            const craters = [
-                { x: -0.3, y: -0.2, r: 0.15 }, { x: 0.2, y: 0.3, r: 0.2 }, { x: 0.4, y: -0.1, r: 0.12 },
-                { x: -0.1, y: 0.5, r: 0.1 }, { x: -0.5, y: 0.1, r: 0.1 }, { x: 0.1, y: -0.5, r: 0.15 }
-            ];
-            craters.forEach(c => {
-                ctx.beginPath();
-                ctx.arc(c.x * moonRadius, c.y * moonRadius, c.r * moonRadius, 0, Math.PI * 2);
-                ctx.fill();
-            });
+            // Dark side of moon (earthshine)
+            ctx.beginPath();
+            ctx.arc(0, 0, r, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(40, 45, 55, 0.9)';
+            ctx.fill();
 
-            // Crescent
-            const k = frame.illumination;
-            const r = moonRadius;
-            ctx.fillStyle = '#fffef8';
+            // Illuminated crescent using proper geometry
+            // The terminator (day/night line) is an ellipse
+            ctx.fillStyle = '#fffef5';
 
-            if (k < 0.5) {
-                const xTerm = r * (1 - 2 * k);
+            if (k <= 0.5) {
+                // Waxing crescent to first quarter
+                // Lit portion is on the right side (positive x after rotation)
+                const terminatorX = r * (1 - 2 * k); // Goes from r (new) to 0 (half)
+
                 ctx.beginPath();
-                ctx.arc(0, 0, r, -Math.PI / 2, Math.PI / 2);
-                ctx.bezierCurveTo(xTerm, r * 0.55, xTerm, -r * 0.55, 0, -r);
+                // Right semicircle (lit limb)
+                ctx.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, false);
+                // Terminator curve (ellipse from bottom to top)
+                if (k > 0.001) {
+                    // Draw terminator as bezier curve
+                    const cp = terminatorX * 0.55; // Control point factor
+                    ctx.bezierCurveTo(cp, r, cp, -r, 0, -r);
+                } else {
+                    // Nearly new moon - just close the path
+                    ctx.lineTo(0, -r);
+                }
+                ctx.closePath();
                 ctx.fill();
             } else {
+                // First quarter to full moon
+                // More than half is lit
                 ctx.beginPath();
-                ctx.arc(0, 0, r, -Math.PI / 2, Math.PI / 2);
+                // Right semicircle
+                ctx.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, false);
+                ctx.closePath();
                 ctx.fill();
-                const xTerm = r * (2 * k - 1);
+
+                // Additional lit area on left
+                const terminatorX = r * (2 * k - 1); // Goes from 0 (half) to r (full)
                 ctx.beginPath();
-                ctx.ellipse(0, 0, xTerm, r, 0, -Math.PI / 2, Math.PI / 2);
+                ctx.ellipse(0, 0, terminatorX, r, 0, Math.PI / 2, -Math.PI / 2, false);
+                ctx.closePath();
                 ctx.fill();
             }
 
-            // Glow
-            ctx.shadowColor = '#fffef8';
-            ctx.shadowBlur = 20;
-            ctx.beginPath();
-            ctx.arc(0, 0, moonRadius, 0, Math.PI * 2);
-            ctx.strokeStyle = 'rgba(255,254,248,0.3)';
-            ctx.lineWidth = 2;
-            ctx.stroke();
+            // Subtle surface detail on lit portion
+            ctx.globalCompositeOperation = 'multiply';
+            ctx.fillStyle = 'rgba(230, 225, 210, 0.3)';
+            const maria = [
+                { x: 0.2, y: -0.3, r: 0.18 },
+                { x: 0.35, y: 0.15, r: 0.12 },
+                { x: 0.15, y: 0.35, r: 0.1 },
+            ];
+            maria.forEach(m => {
+                ctx.beginPath();
+                ctx.arc(m.x * r, m.y * r, m.r * r, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalCompositeOperation = 'source-over';
 
             ctx.restore();
 
@@ -816,148 +787,68 @@ export default function SimulationModal({
         ctx.lineTo(W, horizonY);
         ctx.stroke();
 
-        // Realistic Dubai Silhouette (Edges Only)
+        // Procedural City Skyline (full 360° horizon)
         if (showBuildings) {
-            ctx.fillStyle = '#050505'; // Very dark silhouette
-
-            // Scale factor relative to reference width 2000
-            const s = W / 2000;
-
-            // Realistic Dubai Silhouette (Spherical / Azimuth Mapped)
-            // Map 0..2000 to Azimuth Range [240, 300] (Centered at 270 West) 
-            const cityCenterAz = 270;
-            const cityWidthDeg = 60;
-            const azFactor = cityWidthDeg / 2000;
+            const maxHeightDeg = 6; // Max building height in degrees
 
             skyline.forEach(b => {
-                // Convert to spherical coords
-                const bAz = cityCenterAz + (b.x - 1000) * azFactor;
-                const bWidthDeg = b.w * azFactor;
-                const bHeightDeg = (b.h / 400) * 8; // Standardize 400px = 8 degrees height
+                // Buildings are already in azimuth degrees
+                const bAz = b.x;
+                const bWidthDeg = b.w;
+                const bHeightDeg = b.h * maxHeightDeg;
 
                 // Project to screen
-                // We simplify by projecting the center bottom
                 const centerPos = toScreen(bAz, 0);
-                // Then using degrees scale for W/H
                 const bw = bWidthDeg * pxPerDeg;
                 const bh = bHeightDeg * pxPerDeg;
                 const bx = centerPos.x - bw / 2;
-                const by = centerPos.y - bh; // From horizon up
+                const by = horizonY - bh;
 
-                // Scale 's' for compatibility with old drawing code (relative size)
-                const s = bw / b.w;
+                // Clip check
+                if (bx + bw > -50 && bx < W + 50) {
+                    ctx.fillStyle = '#0a0a0a';
 
-                // Clip check (simple X check)
-                if (bx + bw > -100 && bx < W + 100) {
-
-                    // Reset fill for silhouette
-                    ctx.fillStyle = '#050505';
-
-                    // Handle drawing based on type
-                    if (b.type === 'khalifa') {
-                        // Tiered needle
-                        const levels = 5;
-                        const stepH = bh / levels;
-                        for (let i = 0; i < levels; i++) {
-                            const wRatio = 1 - (i / levels);
-                            const lw = bw * wRatio;
-                            // Draw from bottom up.
-                            const ly2 = horizonY - (i + 1) * stepH;
-                            // Center aligned
-                            ctx.fillRect(bx + (bw - lw) / 2, ly2, lw, stepH);
-                        }
-                        // Needle tip
-                        ctx.beginPath();
-                        ctx.moveTo(bx + bw / 2 - 2, horizonY - bh);
-                        ctx.lineTo(bx + bw / 2 + 2, horizonY - bh);
-                        ctx.lineTo(bx + bw / 2, horizonY - bh - 40 * s);
-                        ctx.fill();
-                    } else if (b.type === 'arab') {
-                        // Sail shape
-                        ctx.beginPath();
-                        ctx.moveTo(bx, horizonY);
-                        ctx.lineTo(bx + bw * 0.8, horizonY - bh); // Front curve top
-                        ctx.quadraticCurveTo(bx - bw * 0.5, horizonY - bh * 0.5, bx, horizonY); // Back curve
-                        ctx.fill();
-                        // Mast
-                        ctx.fillRect(bx + bw * 0.5, horizonY - bh - 10 * s, 3 * s, 10 * s);
-                    } else if (b.type === 'emirates') {
-                        // Two triangles facing each other? Or just one sloped
-                        ctx.beginPath();
-                        ctx.moveTo(bx, horizonY);
-                        ctx.lineTo(bx, horizonY - bh);
-                        ctx.lineTo(bx + bw, horizonY - bh * 0.8);
-                        ctx.lineTo(bx + bw, horizonY);
-                        ctx.fill();
-                    } else if (b.type === 'cayan' || b.type === 'twist') {
-                        // Cayan Tower - twisted appearance with slight shear
-                        ctx.beginPath();
-                        ctx.moveTo(bx, horizonY);
-                        ctx.lineTo(bx + bw * 0.1, horizonY - bh);
-                        ctx.lineTo(bx + bw * 0.9, horizonY - bh);
-                        ctx.lineTo(bx + bw, horizonY);
-                        ctx.fill();
-                    } else if (b.type === 'princess') {
-                        // Princess Tower - tall with crown top
-                        ctx.fillRect(bx, by, bw, bh * 0.95);
-                        // Crown detail
-                        ctx.beginPath();
-                        ctx.moveTo(bx, horizonY - bh * 0.95);
-                        ctx.lineTo(bx + bw * 0.5, horizonY - bh);
-                        ctx.lineTo(bx + bw, horizonY - bh * 0.95);
-                        ctx.fill();
-                    } else if (b.type === 'frame') {
-                        // Dubai Frame - rectangular frame shape
-                        const frameThickness = bw * 0.15;
-                        // Left pillar
-                        ctx.fillRect(bx, by, frameThickness, bh);
-                        // Right pillar
-                        ctx.fillRect(bx + bw - frameThickness, by, frameThickness, bh);
-                        // Top connector
-                        ctx.fillRect(bx, by, bw, frameThickness);
-                    } else if (b.type === 'marina') {
-                        // Marina style - sleek tower with rounded top
-                        ctx.fillRect(bx, by + bh * 0.05, bw, bh * 0.95);
-                        ctx.beginPath();
-                        ctx.arc(bx + bw / 2, by + bh * 0.05, bw / 2, Math.PI, 0);
-                        ctx.fill();
-                    } else if (b.type === 'low') {
-                        // Low building / mall
+                    // Draw based on style (0-3)
+                    if (b.style === 0) {
+                        // Flat top
                         ctx.fillRect(bx, by, bw, bh);
+                    } else if (b.style === 1) {
+                        // Pointed/triangular top
+                        ctx.beginPath();
+                        ctx.moveTo(bx, horizonY);
+                        ctx.lineTo(bx, by + bh * 0.15);
+                        ctx.lineTo(bx + bw / 2, by);
+                        ctx.lineTo(bx + bw, by + bh * 0.15);
+                        ctx.lineTo(bx + bw, horizonY);
+                        ctx.fill();
+                    } else if (b.style === 2) {
+                        // Slanted top
+                        ctx.beginPath();
+                        ctx.moveTo(bx, horizonY);
+                        ctx.lineTo(bx, by);
+                        ctx.lineTo(bx + bw, by + bh * 0.2);
+                        ctx.lineTo(bx + bw, horizonY);
+                        ctx.fill();
                     } else {
-                        // Generic tower block
-                        ctx.fillRect(bx, by, bw, bh);
+                        // Stepped top
+                        ctx.fillRect(bx, by + bh * 0.1, bw, bh * 0.9);
+                        ctx.fillRect(bx + bw * 0.2, by, bw * 0.6, bh * 0.15);
                     }
 
-                    // Add random lights/windows
-                    // Stronger hash to avoid diagonal patterns
-                    const pseudoRandom = (x: number, y: number) => {
-                        const dot = x * 12.9898 + y * 78.233;
-                        const sin = Math.sin(dot) * 43758.5453;
-                        return sin - Math.floor(sin);
-                    };
-
-                    // Draw windows on the main body of the building
-                    ctx.fillStyle = 'rgba(255, 255, 200, 0.4)'; // Warm faint light
-                    const rows = Math.floor(bh / (4 * s));
-                    const cols = Math.floor(bw / (3 * s));
-
-                    if (b.type !== 'khalifa' && b.type !== 'arab') {
-                        for (let r = 1; r < rows - 1; r++) {
-                            for (let c = 1; c < cols - 1; c++) {
-                                // Use building pos + grid pos for seed
-                                if (pseudoRandom(b.x + c, r) > 0.85) {
-                                    const wx = bx + (c * 3 * s);
-                                    const wy = by + (r * 4 * s);
-                                    ctx.fillRect(wx, wy, s * 1.5, s * 2);
+                    // Windows (sparse, randomized by position)
+                    if (bh > 10 && bw > 3) {
+                        ctx.fillStyle = 'rgba(255, 240, 180, 0.35)';
+                        const winRows = Math.floor(bh / 6);
+                        const winCols = Math.max(1, Math.floor(bw / 4));
+                        for (let r = 1; r < winRows; r++) {
+                            for (let c = 0; c < winCols; c++) {
+                                // Deterministic random based on building position
+                                const hash = Math.sin(b.x * 12.9898 + r * 78.233 + c * 37.719) * 43758.5453;
+                                if ((hash - Math.floor(hash)) > 0.7) {
+                                    const wx = bx + 2 + c * (bw / winCols);
+                                    const wy = by + r * 6;
+                                    ctx.fillRect(wx, wy, 2, 3);
                                 }
-                            }
-                        }
-                    } else if (b.type === 'khalifa') {
-                        // Vertical strips of light
-                        for (let r = 10; r < rows; r += 4) {
-                            if (pseudoRandom(b.x, r) > 0.5) {
-                                ctx.fillRect(bx + bw / 2 - s, by + r * 4 * s, s * 2, s * 3);
                             }
                         }
                     }
