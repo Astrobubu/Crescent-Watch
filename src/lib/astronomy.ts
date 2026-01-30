@@ -670,9 +670,9 @@ export function getEnhancedSimulationTrajectory(
             const dx = (sunHorizon.azimuth - moonHorizon.azimuth) * Math.cos(moonHorizon.altitude * DEG2RAD);
             const tiltFromRight = Math.atan2(dy, dx) * RAD2DEG;
 
-            // Calculate current moon age
-            // Calculate current moon age (using Geo for trajectory consistency)
-            const currentMoonAge = calculateMoonAge(timeDate, conjGeo.date);
+            // Calculate current moon age (prefer Topo for local observation accuracy)
+            const conjForAge = conjTopo || conjGeo;
+            const currentMoonAge = calculateMoonAge(timeDate, conjForAge.date);
 
             trajectory.push({
                 timeOffsetMin: i,

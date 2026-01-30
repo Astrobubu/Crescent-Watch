@@ -77,34 +77,102 @@ function generateStars(count: number, seed: number): Array<{ x: number, y: numbe
     return stars;
 }
 
-// Generate "Rough Dubai Skyline" - Edges Only
-function generateDubaiSkyline(width: number, seed: number) {
-    const buildings = [];
+// Building type for skyline
+interface SkylineBuilding {
+    type: string;
+    x: number;
+    w: number;
+    h: number;
+    variant?: number;
+}
 
-    // Left Cluster (Burj Khalifa & Downtown)
-    // Center of cluster around 15% width
-    const leftCenter = width * 0.15;
+// Generate realistic Dubai Skyline
+function generateDubaiSkyline(width: number, seed: number): SkylineBuilding[] {
+    const buildings: SkylineBuilding[] = [];
+    const scale = width / 2000; // Scale factor for different canvas widths
 
-    // Burj Khalifa (The centerpiece of left)
-    buildings.push({ type: 'khalifa', x: leftCenter, w: 60, h: 400 });
+    // === DOWNTOWN CLUSTER (Left side - ~15% of view) ===
+    const downtown = 300 * scale;
 
-    // Flanking towers left
-    buildings.push({ type: 'tower', x: leftCenter - 50, w: 40, h: 180 });
-    buildings.push({ type: 'tower', x: leftCenter - 90, w: 35, h: 140 });
-    // buildings.push({ type: 'tower', x: leftCenter + 50, w: 30, h: 160 });
-    buildings.push({ type: 'emirates', x: leftCenter + 90, w: 40, h: 220 }); // Emirates towers-ish
+    // Burj Khalifa - The iconic centerpiece
+    buildings.push({ type: 'khalifa', x: downtown, w: 45 * scale, h: 450 * scale });
 
-    // Right Cluster (Burj Al Arab & Marina)
-    // Center of cluster around 85% width
-    const rightCenter = width * 0.85;
+    // Address Downtown & surrounding towers
+    buildings.push({ type: 'tower', x: downtown - 60 * scale, w: 28 * scale, h: 220 * scale, variant: 1 });
+    buildings.push({ type: 'tower', x: downtown + 55 * scale, w: 30 * scale, h: 200 * scale, variant: 2 });
+    buildings.push({ type: 'tower', x: downtown - 100 * scale, w: 25 * scale, h: 180 * scale, variant: 3 });
+    buildings.push({ type: 'tower', x: downtown + 100 * scale, w: 26 * scale, h: 175 * scale, variant: 4 });
 
-    // Burj Al Arab
-    // buildings.push({ type: 'arab', x: rightCenter, w: 80, h: 200 });
+    // Index Tower
+    buildings.push({ type: 'tower', x: downtown + 150 * scale, w: 32 * scale, h: 240 * scale, variant: 5 });
 
-    // Marina / Jumeirah Gate style
-    buildings.push({ type: 'frame', x: rightCenter - 80, w: 60, h: 150 }); // Frame-ish? Or Gate
-    buildings.push({ type: 'tower', x: rightCenter - 10, w: 35, h: 190 }); // Straight tower instead of twist
-    buildings.push({ type: 'tower', x: rightCenter + 40, w: 40, h: 130 });
+    // Emirates Towers
+    buildings.push({ type: 'emirates', x: downtown + 220 * scale, w: 35 * scale, h: 280 * scale });
+    buildings.push({ type: 'emirates', x: downtown + 260 * scale, w: 30 * scale, h: 240 * scale });
+
+    // === SHEIKH ZAYED ROAD CLUSTER (Middle section) ===
+    const szr = 700 * scale;
+
+    // Dubai Frame
+    buildings.push({ type: 'frame', x: szr, w: 70 * scale, h: 150 * scale });
+
+    // Various towers along SZR
+    buildings.push({ type: 'tower', x: szr - 100 * scale, w: 28 * scale, h: 200 * scale, variant: 6 });
+    buildings.push({ type: 'tower', x: szr - 60 * scale, w: 24 * scale, h: 170 * scale, variant: 7 });
+    buildings.push({ type: 'tower', x: szr + 100 * scale, w: 30 * scale, h: 190 * scale, variant: 8 });
+    buildings.push({ type: 'tower', x: szr + 150 * scale, w: 26 * scale, h: 160 * scale, variant: 9 });
+
+    // Low buildings / malls
+    buildings.push({ type: 'low', x: szr - 150 * scale, w: 60 * scale, h: 40 * scale });
+    buildings.push({ type: 'low', x: szr + 200 * scale, w: 50 * scale, h: 35 * scale });
+
+    // === MARINA CLUSTER (Right side) ===
+    const marina = 1400 * scale;
+
+    // Princess Tower (tallest residential)
+    buildings.push({ type: 'princess', x: marina - 100 * scale, w: 35 * scale, h: 320 * scale });
+
+    // Cayan Tower (the twisted one)
+    buildings.push({ type: 'cayan', x: marina, w: 32 * scale, h: 280 * scale });
+
+    // Marina 101
+    buildings.push({ type: 'tower', x: marina + 60 * scale, w: 30 * scale, h: 300 * scale, variant: 10 });
+
+    // The Torch
+    buildings.push({ type: 'tower', x: marina - 50 * scale, w: 28 * scale, h: 290 * scale, variant: 11 });
+
+    // Ocean Heights
+    buildings.push({ type: 'tower', x: marina + 120 * scale, w: 34 * scale, h: 260 * scale, variant: 12 });
+
+    // Marina towers cluster
+    buildings.push({ type: 'marina', x: marina - 150 * scale, w: 26 * scale, h: 220 * scale });
+    buildings.push({ type: 'marina', x: marina + 180 * scale, w: 28 * scale, h: 200 * scale });
+    buildings.push({ type: 'marina', x: marina + 230 * scale, w: 24 * scale, h: 180 * scale });
+
+    // === JUMEIRAH / BURJ AL ARAB (Far right) ===
+    const jumeirah = 1750 * scale;
+
+    // Burj Al Arab (sail-shaped icon)
+    buildings.push({ type: 'arab', x: jumeirah, w: 65 * scale, h: 280 * scale });
+
+    // Jumeirah Beach Hotel
+    buildings.push({ type: 'tower', x: jumeirah - 80 * scale, w: 50 * scale, h: 120 * scale, variant: 13 });
+
+    // === FILL IN GAPS ===
+    buildings.push({ type: 'low', x: 480 * scale, w: 40 * scale, h: 60 * scale });
+    buildings.push({ type: 'tower', x: 540 * scale, w: 22 * scale, h: 130 * scale, variant: 14 });
+    buildings.push({ type: 'low', x: 600 * scale, w: 35 * scale, h: 45 * scale });
+    buildings.push({ type: 'tower', x: 950 * scale, w: 24 * scale, h: 140 * scale, variant: 15 });
+    buildings.push({ type: 'low', x: 1020 * scale, w: 45 * scale, h: 50 * scale });
+    buildings.push({ type: 'tower', x: 1100 * scale, w: 26 * scale, h: 160 * scale, variant: 16 });
+    buildings.push({ type: 'low', x: 1180 * scale, w: 55 * scale, h: 55 * scale });
+    buildings.push({ type: 'tower', x: 1250 * scale, w: 23 * scale, h: 135 * scale, variant: 17 });
+
+    // Far edges
+    buildings.push({ type: 'low', x: 80 * scale, w: 50 * scale, h: 50 * scale });
+    buildings.push({ type: 'tower', x: 150 * scale, w: 20 * scale, h: 100 * scale, variant: 18 });
+    buildings.push({ type: 'low', x: 1880 * scale, w: 60 * scale, h: 40 * scale });
+    buildings.push({ type: 'tower', x: 1950 * scale, w: 22 * scale, h: 90 * scale, variant: 19 });
 
     return buildings;
 }
@@ -821,11 +889,43 @@ export default function SimulationModal({
                         ctx.lineTo(bx + bw, horizonY - bh * 0.8);
                         ctx.lineTo(bx + bw, horizonY);
                         ctx.fill();
-                    } else if (b.type === 'twist') {
-                        // Twisted block (Cayan) - approx with slight shear or just simple block for now
+                    } else if (b.type === 'cayan' || b.type === 'twist') {
+                        // Cayan Tower - twisted appearance with slight shear
+                        ctx.beginPath();
+                        ctx.moveTo(bx, horizonY);
+                        ctx.lineTo(bx + bw * 0.1, horizonY - bh);
+                        ctx.lineTo(bx + bw * 0.9, horizonY - bh);
+                        ctx.lineTo(bx + bw, horizonY);
+                        ctx.fill();
+                    } else if (b.type === 'princess') {
+                        // Princess Tower - tall with crown top
+                        ctx.fillRect(bx, by, bw, bh * 0.95);
+                        // Crown detail
+                        ctx.beginPath();
+                        ctx.moveTo(bx, horizonY - bh * 0.95);
+                        ctx.lineTo(bx + bw * 0.5, horizonY - bh);
+                        ctx.lineTo(bx + bw, horizonY - bh * 0.95);
+                        ctx.fill();
+                    } else if (b.type === 'frame') {
+                        // Dubai Frame - rectangular frame shape
+                        const frameThickness = bw * 0.15;
+                        // Left pillar
+                        ctx.fillRect(bx, by, frameThickness, bh);
+                        // Right pillar
+                        ctx.fillRect(bx + bw - frameThickness, by, frameThickness, bh);
+                        // Top connector
+                        ctx.fillRect(bx, by, bw, frameThickness);
+                    } else if (b.type === 'marina') {
+                        // Marina style - sleek tower with rounded top
+                        ctx.fillRect(bx, by + bh * 0.05, bw, bh * 0.95);
+                        ctx.beginPath();
+                        ctx.arc(bx + bw / 2, by + bh * 0.05, bw / 2, Math.PI, 0);
+                        ctx.fill();
+                    } else if (b.type === 'low') {
+                        // Low building / mall
                         ctx.fillRect(bx, by, bw, bh);
                     } else {
-                        // Generic block
+                        // Generic tower block
                         ctx.fillRect(bx, by, bw, bh);
                     }
 
