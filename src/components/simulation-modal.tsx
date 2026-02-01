@@ -260,165 +260,195 @@ export default function SimulationModal({
         ctx.fillStyle = '#1a1a2e';
         ctx.fillRect(0, 0, width, height);
 
-        // Header
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 48px Tajawal, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(t.visibilityReport, width / 2, 100);
+        // Load and draw hand measurement image at bottom with blending
+        const handImg = new Image();
+        handImg.src = '/measuring-sky-with-hand.png';
+        handImg.onload = () => {
+            // Calculate size - not too big, centered at bottom
+            const imgMaxWidth = 600;
+            const aspectRatio = handImg.width / handImg.height;
+            const imgWidth = Math.min(imgMaxWidth, handImg.width);
+            const imgHeight = imgWidth / aspectRatio;
+            const imgX = (width - imgWidth) / 2; // Center horizontally
+            const imgY = height - imgHeight - 100; // Position above footer
 
-        // Date and Location - FORCE ENGLISH NUMERALS
-        ctx.font = '32px Tajawal, sans-serif';
-        ctx.fillStyle = '#cccccc';
-        const dateStr = data.sunsetIso ? new Date(data.sunsetIso).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-GB', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric'
-        }).replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]) : '--';
+            // Apply soft-light blend mode for blending with background
+            ctx.globalCompositeOperation = 'soft-light';
+            ctx.globalAlpha = 0.4; // Make it subtle
+            ctx.drawImage(handImg, imgX, imgY, imgWidth, imgHeight);
 
-        ctx.fillText(dateStr, width / 2, 160);
-        ctx.font = '28px Tajawal, sans-serif';
-        ctx.fillText(`${t.latitude}: ${formatNum(data.meta.lat.toFixed(4))}°  |  ${t.longitude}: ${formatNum(data.meta.lon.toFixed(4))}°`, width / 2, 210);
+            // Reset blend mode
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.globalAlpha = 1;
 
-        // SIMULATION IMAGE - High Quality Draw
-        const simY = 300;
-        const sourceCanvas = canvasRef.current;
+            // Continue with download after image is drawn
+            finishReport();
+        };
+        handImg.onerror = () => {
+            // If image fails to load, just finish without it
+            finishReport();
+        };
 
-        // Calculate Aspect Ratio to avoid squishing
-        const imgAspect = sourceCanvas.width / sourceCanvas.height;
-        const maxW = 1400;
-        const maxH = 800;
-
-        let drawW = maxW;
-        let drawH = maxW / imgAspect;
-
-        if (drawH > maxH) {
-            drawH = maxH;
-            drawW = drawH * imgAspect;
-        }
-
-        ctx.textAlign = 'left';
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 36px Tajawal, sans-serif';
-        ctx.fillText(t.simulation, 100, simY - 20);
-
-        // Draw Image with high fidelity and correct aspect ratio
-        // Center the image horizontally if it's narrower than maxW, or just left align?
-        // Let's keep it left aligned at 100 to match text.
-        ctx.drawImage(sourceCanvas, 100, simY, drawW, drawH);
-        ctx.strokeStyle = '#555';
-        ctx.lineWidth = 4;
-        ctx.strokeRect(100, simY, drawW, drawH);
-
-        // Data section
-        let y = simY + drawH + 80;
-
-        ctx.textAlign = 'left';
-        ctx.font = 'bold 36px Tajawal, sans-serif';
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(t.advancedDetails + ' (At Sunset)', 100, y);
-        y += 60;
-
-        // Use Sunset Frame (Index 0) for consistent data reporting instead of current view
-        const reportFrame = (data.trajectory && data.trajectory.length > 0) ? data.trajectory[0] : currentFrame;
-
-        // Helper to draw row (supports multi-line values)
-        const drawRow = (label: string, value: string, x: number, lineY: number) => {
-            ctx.fillStyle = '#aaaaaa';
-            ctx.font = '28px Tajawal, sans-serif';
-            ctx.fillText(label + ':', x, lineY);
-
+        const finishReport = () => {
+            // Header
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 28px Tajawal, monospace';
+            ctx.font = 'bold 48px Tajawal, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(t.visibilityReport, width / 2, 100);
 
-            const lines = value.split('\n');
-            lines.forEach((line, i) => {
-                ctx.fillText(line, x + 350, lineY + (i * 35));
-            });
-        };
+            // Date and Location - FORCE ENGLISH NUMERALS
+            ctx.font = '32px Tajawal, sans-serif';
+            ctx.fillStyle = '#cccccc';
+            const dateStr = data.sunsetIso ? new Date(data.sunsetIso).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-GB', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            }).replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]) : '--';
 
-        const col1X = 100;
-        const col2X = 850;
+            ctx.fillText(dateStr, width / 2, 160);
+            ctx.font = '28px Tajawal, sans-serif';
+            ctx.fillText(`${t.latitude}: ${formatNum(data.meta.lat.toFixed(4))}°  |  ${t.longitude}: ${formatNum(data.meta.lon.toFixed(4))}°`, width / 2, 210);
 
-        // Headers for Columns
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 24px Tajawal, sans-serif';
-        ctx.fillText(t.geocentric.toUpperCase(), col1X, y);
-        ctx.fillText(t.topocentric.toUpperCase(), col2X, y);
-        y += 40;
+            // SIMULATION IMAGE - High Quality Draw
+            const simY = 300;
+            const sourceCanvas = canvasRef.current;
+            if (!sourceCanvas) return;
 
-        // Conjunction Time
-        const formatTimeStr = (iso: string | null | undefined, includeUtc = false) => {
-            if (!iso) return '--';
-            const local = new Date(iso).toLocaleString('en-GB');
-            if (includeUtc) {
-                const utc = new Date(iso).toISOString().replace('T', ' ').substring(0, 16) + ' UTC';
-                return `${local}\n${utc}`;
+            // Calculate Aspect Ratio to avoid squishing
+            const imgAspect = sourceCanvas.width / sourceCanvas.height;
+            const maxW = 1400;
+            const maxH = 800;
+
+            let drawW = maxW;
+            let drawH = maxW / imgAspect;
+
+            if (drawH > maxH) {
+                drawH = maxH;
+                drawW = drawH * imgAspect;
             }
-            return local;
+
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 36px Tajawal, sans-serif';
+            ctx.fillText(t.simulation, 100, simY - 20);
+
+            // Draw Image with high fidelity and correct aspect ratio
+            ctx.drawImage(sourceCanvas, 100, simY, drawW, drawH);
+            ctx.strokeStyle = '#555';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(100, simY, drawW, drawH);
+
+            // Data section
+            let y = simY + drawH + 80;
+
+            ctx.textAlign = 'left';
+            ctx.font = 'bold 36px Tajawal, sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(t.advancedDetails + ' (At Sunset)', 100, y);
+            y += 60;
+
+            // Use Sunset Frame (Index 0) for consistent data reporting instead of current view
+            const reportFrame = (data.trajectory && data.trajectory.length > 0) ? data.trajectory[0] : currentFrame;
+
+            // Helper to draw row (supports multi-line values)
+            const drawRow = (label: string, value: string, x: number, lineY: number) => {
+                ctx.fillStyle = '#aaaaaa';
+                ctx.font = '28px Tajawal, sans-serif';
+                ctx.fillText(label + ':', x, lineY);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 28px Tajawal, monospace';
+
+                const lines = value.split('\n');
+                lines.forEach((line, i) => {
+                    ctx.fillText(line, x + 350, lineY + (i * 35));
+                });
+            };
+
+            const col1X = 100;
+            const col2X = 850;
+
+            // Headers for Columns
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 24px Tajawal, sans-serif';
+            ctx.fillText(t.geocentric.toUpperCase(), col1X, y);
+            ctx.fillText(t.topocentric.toUpperCase(), col2X, y);
+            y += 40;
+
+            // Conjunction Time
+            const formatTimeStr = (iso: string | null | undefined, includeUtc = false) => {
+                if (!iso) return '--';
+                const local = new Date(iso).toLocaleString('en-GB');
+                if (includeUtc) {
+                    const utc = new Date(iso).toISOString().replace('T', ' ').substring(0, 16) + ' UTC';
+                    return `${local}\n${utc}`;
+                }
+                return local;
+            };
+
+            const geoConj = formatTimeStr(data.conjunctionLocalGeo, true);
+            const topoConj = formatTimeStr(data.conjunctionLocalTopo, true);
+
+            drawRow(t.conjunctionTime, geoConj, col1X, y);
+            drawRow(t.conjunctionTime, topoConj, col2X, y);
+            y += 80; // Extra spacing for double lines
+
+            const geoAge = data.moonAgeHoursGeo ? formatMoonAge(data.moonAgeHoursGeo).replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]) : '--';
+            const topoAge = data.moonAgeHoursTopo !== undefined && data.moonAgeHoursTopo !== null ? formatMoonAge(data.moonAgeHoursTopo).replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]) : '--';
+
+            drawRow(t.moonAge, geoAge, col1X, y);
+            drawRow(t.moonAge, topoAge, col2X, y);
+            y += 80;
+
+            // Physical Data Header
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 24px Tajawal, sans-serif';
+            ctx.fillText('PHYSICAL POSITION (TOPOCENTRIC)', col1X, y);
+            y += 40;
+
+            // Lag Time calculation (Moonset - Sunset)
+            let lagTimeStr = '--';
+            if (data.moonsetIso && data.sunsetIso) {
+                const diffMs = new Date(data.moonsetIso).getTime() - new Date(data.sunsetIso).getTime();
+                const diffMins = Math.round(diffMs / 60000);
+                lagTimeStr = `${diffMins} min`;
+            }
+
+            const commonItems = [
+                { label: t.moonAltitude, value: `${formatDeg(reportFrame.moonAlt)}` },
+                { label: t.sunAltitude, value: `${formatDeg(reportFrame.sunAlt)}` },
+                { label: t.elongation, value: `${formatDeg(reportFrame.elongation)}` },
+                { label: t.moonAzimuth, value: formatDMS(reportFrame.moonAz).replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]) },
+                { label: t.illumination, value: `${formatNum((reportFrame.illumination * 100).toFixed(1))}%` },
+                { label: 'Moon Orientation', value: `${formatNum(reportFrame.tilt.toFixed(2))}°` },
+                { label: 'Lag Time', value: lagTimeStr },
+                { label: t.sunsetTime, value: data.sunsetIso ? new Date(data.sunsetIso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) : '--:--' },
+                { label: t.moonsetTime, value: data.moonsetIso ? new Date(data.moonsetIso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) : '--:--' },
+            ];
+
+            commonItems.forEach((item, index) => {
+                const col = index % 2;
+                const row = Math.floor(index / 2);
+                const x = col === 0 ? col1X : col2X;
+                drawRow(item.label, item.value, x, y + row * 60); // Increased row height for readability
+            });
+
+            y += Math.ceil(commonItems.length / 2) * 60 + 80;
+
+            // Footer
+            ctx.fillStyle = '#666';
+            ctx.font = '24px Tajawal, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Generated by Crescent Watch | ' + new Date().toISOString().split('T')[0], width / 2, height - 50);
+
+            // Download logic
+            const link = document.createElement('a');
+            const dateFileName = data.sunsetIso ? new Date(data.sunsetIso).toISOString().split('T')[0] : 'report';
+            link.download = `crescent-report-${dateFileName}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
         };
-
-        const geoConj = formatTimeStr(data.conjunctionLocalGeo, true);
-        const topoConj = formatTimeStr(data.conjunctionLocalTopo, true);
-
-        drawRow(t.conjunctionTime, geoConj, col1X, y);
-        drawRow(t.conjunctionTime, topoConj, col2X, y);
-        y += 80; // Extra spacing for double lines
-
-        const geoAge = data.moonAgeHoursGeo ? formatMoonAge(data.moonAgeHoursGeo).replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]) : '--';
-        const topoAge = data.moonAgeHoursTopo !== undefined && data.moonAgeHoursTopo !== null ? formatMoonAge(data.moonAgeHoursTopo).replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]) : '--';
-
-        drawRow(t.moonAge, geoAge, col1X, y);
-        drawRow(t.moonAge, topoAge, col2X, y);
-        y += 80;
-
-        // Physical Data Header
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 24px Tajawal, sans-serif';
-        ctx.fillText('PHYSICAL POSITION (TOPOCENTRIC)', col1X, y);
-        y += 40;
-
-        // Lag Time calculation (Moonset - Sunset)
-        let lagTimeStr = '--';
-        if (data.moonsetIso && data.sunsetIso) {
-            const diffMs = new Date(data.moonsetIso).getTime() - new Date(data.sunsetIso).getTime();
-            const diffMins = Math.round(diffMs / 60000);
-            lagTimeStr = `${diffMins} min`;
-        }
-
-        const commonItems = [
-            { label: t.moonAltitude, value: `${formatDeg(reportFrame.moonAlt)}` },
-            { label: t.sunAltitude, value: `${formatDeg(reportFrame.sunAlt)}` },
-            { label: t.elongation, value: `${formatDeg(reportFrame.elongation)}` },
-            { label: t.moonAzimuth, value: formatDMS(reportFrame.moonAz).replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]) },
-            { label: t.illumination, value: `${formatNum((reportFrame.illumination * 100).toFixed(1))}%` },
-            { label: 'Moon Orientation', value: `${formatNum(reportFrame.tilt.toFixed(2))}°` },
-            { label: 'Lag Time', value: lagTimeStr },
-            { label: t.sunsetTime, value: data.sunsetIso ? new Date(data.sunsetIso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) : '--:--' },
-            { label: t.moonsetTime, value: data.moonsetIso ? new Date(data.moonsetIso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) : '--:--' },
-        ];
-
-        commonItems.forEach((item, index) => {
-            const col = index % 2;
-            const row = Math.floor(index / 2);
-            const x = col === 0 ? col1X : col2X;
-            drawRow(item.label, item.value, x, y + row * 60); // Increased row height for readability
-        });
-
-        y += Math.ceil(commonItems.length / 2) * 60 + 80;
-
-        // Footer
-        ctx.fillStyle = '#666';
-        ctx.font = '24px Tajawal, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('Generated by Crescent Watch | ' + new Date().toISOString().split('T')[0], width / 2, height - 50);
-
-        // Download logic
-        const link = document.createElement('a');
-        const dateFileName = data.sunsetIso ? new Date(data.sunsetIso).toISOString().split('T')[0] : 'report';
-        link.download = `crescent-report-${dateFileName}.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
     }, [data, locale, t, use24Hour]);
 
 
