@@ -7,7 +7,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { X, Loader2, RefreshCw, ChevronDown, ChevronUp, Download, Play, Pause } from 'lucide-react';
+import { X, Loader2, RefreshCw, ChevronDown, ChevronUp, Download, Play, Pause, Settings2 } from 'lucide-react';
+import Link from 'next/link';
 import { getTranslations, Locale, isRTL } from '@/lib/i18n';
 import { formatDMS, formatMoonAge, formatCoordinate, formatRA, formatDec, getMoonRaDec } from '@/lib/astronomy';
 
@@ -242,214 +243,425 @@ export default function SimulationModal({
         });
     };
 
-    // Generate and download visibility report
-    const handleDownloadReport = useCallback((currentFrame: SimulationPoint | null) => {
+    // Report configuration interface
+    interface ReportConfig {
+        aspectRatio: '9:16' | '3:4' | '1:1' | '4:3' | 'a4';
+        backgroundColor: string;
+        textColor: string;
+        accentColor: string;
+        showHeader: boolean;
+        headerTitle: string;
+        showDate: boolean;
+        showLocation: boolean;
+        showSimulation: boolean;
+        simulationBorder: boolean;
+        sections: Array<{ id: string; enabled: boolean }>;
+        showFooter: boolean;
+        footerText: string;
+        showHandImage: boolean;
+    }
+
+    // Generate and download visibility report - Clean professional design with config support
+    const handleDownloadReport = useCallback(async (currentFrame: SimulationPoint | null, format: 'report' | 'instagram' | 'a4' = 'report') => {
         if (!data || !currentFrame || !canvasRef.current) return;
+
+        // Pre-load the hand measurement image
+        let handImage: HTMLImageElement | null = null;
+        try {
+            handImage = await new Promise<HTMLImageElement>((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = reject;
+                img.src = '/measuring-sky-with-hand.png';
+            });
+        } catch (e) {
+            console.warn('Failed to load hand image:', e);
+        }
+
+        // Load saved config or use defaults - MUST MATCH editor defaults exactly!
+        let config: ReportConfig = {
+            aspectRatio: '9:16',
+            backgroundColor: '#1a1a2e',  // Must match editor default
+            textColor: '#ffffff',
+            accentColor: '#4a90d9',
+            showHeader: true,
+            headerTitle: t.visibilityReport,
+            showDate: true,
+            showLocation: true,
+            showSimulation: true,
+            simulationBorder: true,
+            sections: [
+                { id: 'conjunction', enabled: true },
+                { id: 'moonAge', enabled: true },
+                { id: 'altitude', enabled: true },
+                { id: 'elongation', enabled: true },
+                { id: 'illumination', enabled: true },
+                { id: 'times', enabled: true },
+                { id: 'lagTime', enabled: true },
+                { id: 'azimuth', enabled: true },
+                { id: 'tilt', enabled: true },
+            ],
+            showFooter: true,
+            footerText: t.generatedBy,
+            showHandImage: true,
+        };
+
+        // Load from localStorage
+        try {
+            const savedConfig = localStorage.getItem('crescent-report-config');
+            if (savedConfig) {
+                const parsed = JSON.parse(savedConfig);
+                config = { ...config, ...parsed };
+            }
+        } catch (e) {
+            console.error('Failed to load report config:', e);
+        }
+
+        // Override aspect ratio based on download format
+        if (format === 'instagram') {
+            config.aspectRatio = '1:1';
+        } else if (format === 'a4') {
+            config.aspectRatio = 'a4';
+        }
+
+        // Helper to check if section is enabled
+        const isSectionEnabled = (id: string) => {
+            const section = config.sections?.find(s => s.id === id);
+            return section ? section.enabled : true;
+        };
 
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // HD Resolution (2x standard width)
-        const width = 1600;
-        const height = 2600; // Increased height to accommodate extra details
+        // Width based on aspect ratio, height will be calculated dynamically
+        const widths: Record<string, number> = {
+            '9:16': 1080,
+            '3:4': 1200,
+            '1:1': 1080,
+            '4:3': 1600,
+            'a4': 2480, // A4 at 300 DPI (8.27 × 11.69 inches)
+        };
+        const width = widths[config.aspectRatio] || 1080;
+
+        // For A4, set minimum height to maintain aspect ratio
+        const isA4 = config.aspectRatio === 'a4';
+
+        // We'll set height after calculating content, use temporary large height
+        let height = 3000; // Temporary
         canvas.width = width;
         canvas.height = height;
 
-        // Background
-        ctx.fillStyle = '#1a1a2e';
+        const padding = 50;
+        const cardPadding = 20;
+
+        // Background - using config color
+        const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+        bgGrad.addColorStop(0, config.backgroundColor);
+        bgGrad.addColorStop(1, config.backgroundColor);
+        ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, width, height);
 
-        // Load and draw hand measurement image at bottom with blending
-        const handImg = new Image();
-        handImg.src = '/measuring-sky-with-hand.png';
-        handImg.onload = () => {
-            // Calculate size - not too big, centered at bottom
-            const imgMaxWidth = 600;
-            const aspectRatio = handImg.width / handImg.height;
-            const imgWidth = Math.min(imgMaxWidth, handImg.width);
-            const imgHeight = imgWidth / aspectRatio;
-            const imgX = (width - imgWidth) / 2; // Center horizontally
-            const imgY = height - imgHeight - 100; // Position above footer
+        // Get report data
+        const reportFrame = (data.trajectory && data.trajectory.length > 0) ? data.trajectory[0] : currentFrame;
+        const sourceCanvas = canvasRef.current;
 
-            // Apply soft-light blend mode for blending with background
-            ctx.globalCompositeOperation = 'soft-light';
-            ctx.globalAlpha = 0.4; // Make it subtle
-            ctx.drawImage(handImg, imgX, imgY, imgWidth, imgHeight);
+        // Helper functions - use config colors
+        const textColor = config.textColor;
+        const accentColor = config.accentColor;
 
-            // Reset blend mode
-            ctx.globalCompositeOperation = 'source-over';
-            ctx.globalAlpha = 1;
+        const drawCard = (x: number, y: number, w: number, h: number, title?: string) => {
+            // Card background
+            ctx.fillStyle = textColor + '08';
+            ctx.beginPath();
+            ctx.roundRect(x, y, w, h, 12);
+            ctx.fill();
 
-            // Continue with download after image is drawn
-            finishReport();
-        };
-        handImg.onerror = () => {
-            // If image fails to load, just finish without it
-            finishReport();
-        };
+            // Card border
+            ctx.strokeStyle = textColor + '15';
+            ctx.lineWidth = 1;
+            ctx.stroke();
 
-        const finishReport = () => {
-            // Header
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 48px Tajawal, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(t.visibilityReport, width / 2, 100);
-
-            // Date and Location - FORCE ENGLISH NUMERALS
-            ctx.font = '32px Tajawal, sans-serif';
-            ctx.fillStyle = '#cccccc';
-            const dateStr = data.sunsetIso ? new Date(data.sunsetIso).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-GB', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-            }).replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]) : '--';
-
-            ctx.fillText(dateStr, width / 2, 160);
-            ctx.font = '28px Tajawal, sans-serif';
-            ctx.fillText(`${t.latitude}: ${formatNum(data.meta.lat.toFixed(4))}°  |  ${t.longitude}: ${formatNum(data.meta.lon.toFixed(4))}°`, width / 2, 210);
-
-            // SIMULATION IMAGE - High Quality Draw
-            const simY = 300;
-            const sourceCanvas = canvasRef.current;
-            if (!sourceCanvas) return;
-
-            // Calculate Aspect Ratio to avoid squishing
-            const imgAspect = sourceCanvas.width / sourceCanvas.height;
-            const maxW = 1400;
-            const maxH = 800;
-
-            let drawW = maxW;
-            let drawH = maxW / imgAspect;
-
-            if (drawH > maxH) {
-                drawH = maxH;
-                drawW = drawH * imgAspect;
+            if (title) {
+                ctx.fillStyle = textColor + '80';
+                ctx.font = 'bold 14px Tajawal, sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText(title.toUpperCase(), x + cardPadding, y + 28);
+                return y + 45;
             }
+            return y + cardPadding;
+        };
 
+        const drawDataItem = (x: number, y: number, label: string, value: string, small = false) => {
             ctx.textAlign = 'left';
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 36px Tajawal, sans-serif';
-            ctx.fillText(t.simulation, 100, simY - 20);
+            ctx.fillStyle = textColor + '80';
+            ctx.font = `${small ? 13 : 15}px Tajawal, sans-serif`;
+            ctx.fillText(label, x, y);
 
-            // Draw Image with high fidelity and correct aspect ratio
-            ctx.drawImage(sourceCanvas, 100, simY, drawW, drawH);
-            ctx.strokeStyle = '#555';
-            ctx.lineWidth = 4;
-            ctx.strokeRect(100, simY, drawW, drawH);
+            ctx.fillStyle = textColor;
+            ctx.font = `bold ${small ? 18 : 22}px Tajawal, monospace`;
+            ctx.fillText(value, x, y + (small ? 22 : 28));
+        };
 
-            // Data section
-            let y = simY + drawH + 80;
+        let y = padding;
 
-            ctx.textAlign = 'left';
-            ctx.font = 'bold 36px Tajawal, sans-serif';
-            ctx.fillStyle = '#ffffff';
-            ctx.fillText(t.advancedDetails + ' (At Sunset)', 100, y);
+        // ===== HEADER (if enabled) =====
+        if (config.showHeader) {
+            ctx.fillStyle = textColor;
+            ctx.font = 'bold 38px Tajawal, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(config.headerTitle || t.visibilityReport, width / 2, y + 35);
             y += 60;
 
-            // Use Sunset Frame (Index 0) for consistent data reporting instead of current view
-            const reportFrame = (data.trajectory && data.trajectory.length > 0) ? data.trajectory[0] : currentFrame;
+            // Date (if enabled)
+            if (config.showDate) {
+                ctx.font = '22px Tajawal, sans-serif';
+                ctx.fillStyle = textColor + 'b3';
+                const dateStr = data.sunsetIso ? new Date(data.sunsetIso).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-GB', {
+                    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+                }).replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]) : '--';
+                ctx.fillText(dateStr, width / 2, y);
+                y += 30;
+            }
 
-            // Helper to draw row (supports multi-line values)
-            const drawRow = (label: string, value: string, x: number, lineY: number) => {
-                ctx.fillStyle = '#aaaaaa';
-                ctx.font = '28px Tajawal, sans-serif';
-                ctx.fillText(label + ':', x, lineY);
-
-                ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 28px Tajawal, monospace';
-
-                const lines = value.split('\n');
-                lines.forEach((line, i) => {
-                    ctx.fillText(line, x + 350, lineY + (i * 35));
-                });
-            };
-
-            const col1X = 100;
-            const col2X = 850;
-
-            // Headers for Columns
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 24px Tajawal, sans-serif';
-            ctx.fillText(t.geocentric.toUpperCase(), col1X, y);
-            ctx.fillText(t.topocentric.toUpperCase(), col2X, y);
-            y += 40;
-
-            // Conjunction Time
-            const formatTimeStr = (iso: string | null | undefined, includeUtc = false) => {
-                if (!iso) return '--';
-                const local = new Date(iso).toLocaleString('en-GB');
-                if (includeUtc) {
-                    const utc = new Date(iso).toISOString().replace('T', ' ').substring(0, 16) + ' UTC';
-                    return `${local}\n${utc}`;
+            // Location (if enabled)
+            if (config.showLocation) {
+                // Location name if available
+                if (data.meta.locationName) {
+                    ctx.font = '18px Tajawal, sans-serif';
+                    ctx.fillStyle = textColor + '80';
+                    ctx.fillText(data.meta.locationName, width / 2, y);
+                    y += 25;
                 }
-                return local;
-            };
 
-            const geoConj = formatTimeStr(data.conjunctionLocalGeo, true);
-            const topoConj = formatTimeStr(data.conjunctionLocalTopo, true);
+                // Coordinates
+                ctx.font = '16px Tajawal, monospace';
+                ctx.fillStyle = textColor + '66';
+                ctx.fillText(`${formatNum(data.meta.lat.toFixed(4))}°, ${formatNum(data.meta.lon.toFixed(4))}°`, width / 2, y);
+                y += 40;
+            }
+        }
 
-            drawRow(t.conjunctionTime, geoConj, col1X, y);
-            drawRow(t.conjunctionTime, topoConj, col2X, y);
-            y += 80; // Extra spacing for double lines
+        // ===== SIMULATION IMAGE (if enabled) =====
+        if (config.showSimulation && sourceCanvas) {
+            const simAspect = sourceCanvas.width / sourceCanvas.height;
+            const simWidth = width - padding * 2;
+            const simHeight = simWidth / simAspect;
+
+            // Draw simulation with rounded corners
+            ctx.save();
+            ctx.beginPath();
+            ctx.roundRect(padding, y, simWidth, simHeight, 12);
+            ctx.clip();
+            ctx.drawImage(sourceCanvas, padding, y, simWidth, simHeight);
+            ctx.restore();
+
+            // Border (if enabled)
+            if (config.simulationBorder) {
+                ctx.strokeStyle = textColor + '1a';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(padding, y, simWidth, simHeight, 12);
+                ctx.stroke();
+            }
+
+            y += simHeight + 25;
+        }
+
+        // ===== HAND MEASUREMENT IMAGE (if enabled) =====
+        if (config.showHandImage && handImage) {
+            const handHeight = 120;
+            const handWidth = width - padding * 2;
+
+            // Background for hand section
+            ctx.fillStyle = textColor + '08';
+            ctx.beginPath();
+            ctx.roundRect(padding, y, handWidth, handHeight, 12);
+            ctx.fill();
+
+            // Draw the actual hand measurement image
+            const imgAspect = handImage.width / handImage.height;
+            const drawHeight = handHeight - 30;
+            const drawWidth = drawHeight * imgAspect;
+            const imgX = (width - drawWidth) / 2;
+            const imgY = y + 10;
+
+            ctx.save();
+            ctx.globalAlpha = 0.85;
+            ctx.drawImage(handImage, imgX, imgY, drawWidth, drawHeight);
+            ctx.restore();
+
+            // Label
+            ctx.fillStyle = textColor + '60';
+            ctx.font = '12px Tajawal, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(t.handMeasurementRef, width / 2, y + handHeight - 8);
+
+            y += handHeight + 20;
+        }
+
+        // ===== VISIBILITY ASSESSMENT =====
+        const visibilityZone = reportFrame.moonAlt > 5 && reportFrame.elongation > 8 ? 'VISIBLE' :
+            reportFrame.moonAlt > 2 && reportFrame.elongation > 6 ? 'POSSIBLE' : 'DIFFICULT';
+        const zoneColor = visibilityZone === 'VISIBLE' ? '#22c55e' :
+            visibilityZone === 'POSSIBLE' ? '#eab308' : '#ef4444';
+
+        const assessmentHeight = 70;
+        ctx.fillStyle = zoneColor + '20';
+        ctx.beginPath();
+        ctx.roundRect(padding, y, width - padding * 2, assessmentHeight, 12);
+        ctx.fill();
+
+        ctx.strokeStyle = zoneColor + '40';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = zoneColor;
+        ctx.font = 'bold 24px Tajawal, sans-serif';
+        ctx.textAlign = 'center';
+        const assessmentText = visibilityZone === 'VISIBLE' ? t.crescentLikelyVisible :
+            visibilityZone === 'POSSIBLE' ? t.crescentMayBeVisible : t.crescentDifficult;
+        ctx.fillText(assessmentText, width / 2, y + 45);
+        y += assessmentHeight + 20;
+
+        const colWidth = (width - padding * 2 - cardPadding * 2) / 2;
+
+        // ===== MOON AGE CARD (if moonAge section enabled) =====
+        if (isSectionEnabled('moonAge')) {
+            const ageCardHeight = 100;
+            let cardY = drawCard(padding, y, width - padding * 2, ageCardHeight, t.moonAgeAtSunset);
 
             const geoAge = data.moonAgeHoursGeo ? formatMoonAge(data.moonAgeHoursGeo).replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]) : '--';
             const topoAge = data.moonAgeHoursTopo !== undefined && data.moonAgeHoursTopo !== null ? formatMoonAge(data.moonAgeHoursTopo).replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]) : '--';
 
-            drawRow(t.moonAge, geoAge, col1X, y);
-            drawRow(t.moonAge, topoAge, col2X, y);
-            y += 80;
+            drawDataItem(padding + cardPadding, cardY + 5, t.geocentric, geoAge);
+            drawDataItem(padding + cardPadding + colWidth, cardY + 5, t.topocentric, topoAge);
+            y += ageCardHeight + 15;
+        }
 
-            // Physical Data Header
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 24px Tajawal, sans-serif';
-            ctx.fillText('PHYSICAL POSITION (TOPOCENTRIC)', col1X, y);
-            y += 40;
+        // ===== KEY PARAMETERS CARD =====
+        const keyParams: [string, string, string][] = [];
+        if (isSectionEnabled('altitude')) keyParams.push(['altitude', t.moonAltitude, `${formatNum(reportFrame.moonAlt.toFixed(2))}°`]);
+        if (isSectionEnabled('elongation')) keyParams.push(['elongation', t.elongation, `${formatNum(reportFrame.elongation.toFixed(2))}°`]);
+        if (isSectionEnabled('illumination')) keyParams.push(['illumination', t.illumination, `${formatNum((reportFrame.illumination * 100).toFixed(2))}%`]);
+        if (isSectionEnabled('tilt')) keyParams.push(['tilt', t.moonTilt, `${formatNum(reportFrame.tilt.toFixed(1))}°`]);
 
-            // Lag Time calculation (Moonset - Sunset)
-            let lagTimeStr = '--';
-            if (data.moonsetIso && data.sunsetIso) {
-                const diffMs = new Date(data.moonsetIso).getTime() - new Date(data.sunsetIso).getTime();
-                const diffMins = Math.round(diffMs / 60000);
-                lagTimeStr = `${diffMins} min`;
-            }
+        if (keyParams.length > 0) {
+            const keyParamsHeight = Math.ceil(keyParams.length / 2) * 55 + 50;
+            let cardY = drawCard(padding, y, width - padding * 2, keyParamsHeight, t.keyParameters);
 
-            const commonItems = [
-                { label: t.moonAltitude, value: `${formatDeg(reportFrame.moonAlt)}` },
-                { label: t.sunAltitude, value: `${formatDeg(reportFrame.sunAlt)}` },
-                { label: t.elongation, value: `${formatDeg(reportFrame.elongation)}` },
-                { label: t.moonAzimuth, value: formatDMS(reportFrame.moonAz).replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]) },
-                { label: t.illumination, value: `${formatNum((reportFrame.illumination * 100).toFixed(1))}%` },
-                { label: 'Moon Orientation', value: `${formatNum(reportFrame.tilt.toFixed(2))}°` },
-                { label: 'Lag Time', value: lagTimeStr },
-                { label: t.sunsetTime, value: data.sunsetIso ? new Date(data.sunsetIso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) : '--:--' },
-                { label: t.moonsetTime, value: data.moonsetIso ? new Date(data.moonsetIso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) : '--:--' },
-            ];
-
-            commonItems.forEach((item, index) => {
-                const col = index % 2;
-                const row = Math.floor(index / 2);
-                const x = col === 0 ? col1X : col2X;
-                drawRow(item.label, item.value, x, y + row * 60); // Increased row height for readability
+            keyParams.forEach((param, i) => {
+                const col = i % 2;
+                const row = Math.floor(i / 2);
+                drawDataItem(
+                    padding + cardPadding + col * colWidth,
+                    cardY + 5 + row * 55,
+                    param[1],
+                    param[2],
+                    true
+                );
             });
+            y += keyParamsHeight + 15;
+        }
 
-            y += Math.ceil(commonItems.length / 2) * 60 + 80;
+        // ===== TIMES & POSITION CARD =====
+        let lagTimeStr = '--';
+        if (data.moonsetIso && data.sunsetIso) {
+            const diffMs = new Date(data.moonsetIso).getTime() - new Date(data.sunsetIso).getTime();
+            const diffMins = Math.round(diffMs / 60000);
+            lagTimeStr = `${diffMins} min`;
+        }
 
-            // Footer
-            ctx.fillStyle = '#666';
-            ctx.font = '24px Tajawal, sans-serif';
+        const timesData: [string, string, string][] = [];
+        if (isSectionEnabled('times')) {
+            timesData.push(['times1', t.sunsetTime, data.sunsetIso ? new Date(data.sunsetIso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) + ' UTC' : '--']);
+            timesData.push(['times2', t.moonsetTime, data.moonsetIso ? new Date(data.moonsetIso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) + ' UTC' : '--']);
+        }
+        if (isSectionEnabled('lagTime')) timesData.push(['lagTime', t.lagTime, lagTimeStr]);
+        if (isSectionEnabled('azimuth')) timesData.push(['azimuth', t.moonAzimuth, formatDMS(reportFrame.moonAz).replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)])]);
+
+        if (timesData.length > 0) {
+            const timesHeight = Math.ceil(timesData.length / 2) * 55 + 50;
+            let cardY = drawCard(padding, y, width - padding * 2, timesHeight, t.timesAndPosition);
+
+            timesData.forEach((param, i) => {
+                const col = i % 2;
+                const row = Math.floor(i / 2);
+                drawDataItem(
+                    padding + cardPadding + col * colWidth,
+                    cardY + 5 + row * 55,
+                    param[1],
+                    param[2],
+                    true
+                );
+            });
+            y += timesHeight + 15;
+        }
+
+        // ===== CONJUNCTION DATA CARD (if conjunction section enabled) =====
+        if (isSectionEnabled('conjunction')) {
+            const conjHeight = 100;
+            let cardY = drawCard(padding, y, width - padding * 2, conjHeight, t.conjunctionTimes);
+
+            const formatConjTime = (iso: string | null | undefined) => {
+                if (!iso) return '--';
+                return new Date(iso).toLocaleString('en-GB', {
+                    day: '2-digit', month: '2-digit', year: 'numeric',
+                    hour: '2-digit', minute: '2-digit', timeZone: 'UTC'
+                }) + ' UTC';
+            };
+
+            drawDataItem(padding + cardPadding, cardY + 5, t.geocentricConjunction, formatConjTime(data.conjunctionIsoGeo), true);
+            drawDataItem(padding + cardPadding + colWidth, cardY + 5, t.topocentricConjunction, formatConjTime(data.conjunctionIsoTopo), true);
+            y += conjHeight + 15;
+        }
+
+        // ===== FOOTER =====
+        y += 30; // Add some space before footer
+
+        if (config.showFooter) {
+            ctx.fillStyle = textColor + '4d';
+            ctx.font = '14px Tajawal, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('Generated by Crescent Watch | ' + new Date().toISOString().split('T')[0], width / 2, height - 50);
+            ctx.fillText(config.footerText || t.generatedBy, width / 2, y);
+            y += 20;
+            ctx.fillStyle = textColor + '33';
+            ctx.font = '12px Tajawal, monospace';
+            ctx.fillText(new Date().toISOString().split('T')[0], width / 2, y);
+            y += 30;
+        }
 
-            // Download logic
-            const link = document.createElement('a');
-            const dateFileName = data.sunsetIso ? new Date(data.sunsetIso).toISOString().split('T')[0] : 'report';
-            link.download = `crescent-report-${dateFileName}.png`;
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-        };
-    }, [data, locale, t, use24Hour]);
+        // Now we know the actual content height - resize canvas to fit
+        let finalHeight = y + padding;
+
+        // For A4, ensure minimum height maintains proper aspect ratio (1.414)
+        if (isA4) {
+            const a4MinHeight = Math.round(width * 1.414);
+            finalHeight = Math.max(finalHeight, a4MinHeight);
+        }
+
+        // Create a new canvas with the correct size
+        const finalCanvas = document.createElement('canvas');
+        finalCanvas.width = width;
+        finalCanvas.height = finalHeight;
+        const finalCtx = finalCanvas.getContext('2d');
+        if (!finalCtx) return;
+
+        // Fill background first (for A4 extra space)
+        finalCtx.fillStyle = config.backgroundColor;
+        finalCtx.fillRect(0, 0, width, finalHeight);
+
+        // Copy the content from the oversized canvas
+        finalCtx.drawImage(canvas, 0, 0);
+
+        // Download the properly sized canvas
+        const link = document.createElement('a');
+        const dateFileName = data.sunsetIso ? new Date(data.sunsetIso).toISOString().split('T')[0] : 'report';
+        const formatSuffix = format === 'instagram' ? '-instagram' : format === 'a4' ? '-a4' : '';
+        link.download = `crescent-report-${dateFileName}${formatSuffix}.png`;
+        link.href = finalCanvas.toDataURL('image/png');
+        link.click();
+    }, [data, locale, t]);
 
 
 
@@ -731,8 +943,8 @@ export default function SimulationModal({
 
             ctx.restore();
 
-            // Moon altitude line (perpendicular to horizon)
-            if (frame.moonAlt > 0) {
+            // Moon altitude line (perpendicular to horizon) - Only show when overlay is enabled
+            if (showOverlay && frame.moonAlt > 0) {
                 const horizonPoint = toScreen(frame.moonAz, 0);
                 ctx.save();
                 ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
@@ -753,8 +965,8 @@ export default function SimulationModal({
                 ctx.restore();
             }
 
-            // Moon age label (next to moon)
-            if (frame.moonAge !== undefined) {
+            // Moon age label (next to moon) - Only show when overlay is enabled
+            if (showOverlay && frame.moonAge !== undefined) {
                 ctx.save();
                 ctx.font = '10px monospace';
                 ctx.fillStyle = 'rgba(255, 220, 150, 0.8)';
@@ -994,7 +1206,7 @@ export default function SimulationModal({
             const observationItems = [
                 { label: t.sunsetTime, value: data.sunsetIso ? new Date(data.sunsetIso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) : '--:--' },
                 { label: t.moonsetTime, value: data.moonsetIso ? new Date(data.moonsetIso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) : '--:--' },
-                { label: 'Lag Time', value: lagTimeStr },
+                { label: t.lagTime, value: lagTimeStr },
                 { label: t.moonAge, value: data.moonAgeHoursTopo !== undefined && data.moonAgeHoursTopo !== null ? formatNum((data.moonAgeHoursTopo + timeOffsetHours).toFixed(2)) + ' h' : '--' },
                 { label: t.illumination, value: formatNum((frame.illumination * 100).toFixed(1)) + '%' },
                 { label: t.sunAltitude, value: formatNum((frame.sunAlt).toFixed(2)) + '°' },
@@ -1002,9 +1214,9 @@ export default function SimulationModal({
                 { label: t.sunAzimuth, value: formatDMS(frame.sunAz).replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٩'.indexOf(d)]) },
                 { label: t.azimuthDiff, value: formatNum((Math.abs(frame.moonAz - frame.sunAz)).toFixed(2)) + '°' },
                 { label: t.elongation, value: formatDMS(frame.elongation).replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٩'.indexOf(d)]) },
-                { label: 'Moon Orientation', value: formatNum(frame.tilt.toFixed(2)) + '°' },
-                { label: 'Moon RA', value: formatRA(moonRaDec.ra) },
-                { label: 'Moon Dec', value: formatDec(moonRaDec.dec) },
+                { label: t.moonOrientation, value: formatNum(frame.tilt.toFixed(2)) + '°' },
+                { label: t.moonRA, value: formatRA(moonRaDec.ra) },
+                { label: t.moonDec, value: formatDec(moonRaDec.dec) },
             ];
 
             observationItems.forEach(item => {
@@ -1200,14 +1412,14 @@ export default function SimulationModal({
                         {(viewAz !== null || viewAlt !== null || fov !== 50) && (
                             <div className="absolute top-4 right-4 z-10">
                                 <Button size="sm" variant="secondary" onClick={handleResetView} className="h-8 text-xs bg-black/50 text-white hover:bg-black/80 backdrop-blur-md border border-white/10">
-                                    Reset View
+                                    {t.resetView}
                                 </Button>
                             </div>
                         )}
 
                         {/* Interactive hint */}
                         <div className="absolute bottom-4 left-4 z-10 text-[10px] text-white/30 pointer-events-none select-none">
-                            Drag to Pan • Scroll/Double-Tap to Zoom
+                            {t.dragToPan}
                         </div>
                     </div>
 
@@ -1278,11 +1490,22 @@ export default function SimulationModal({
                                         <Label htmlFor="overlay" className="text-muted-foreground cursor-pointer">{t.showData}</Label>
                                     </div>
 
+                                    <Link href="/report-editor">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="rounded-xl text-xs gap-1 h-7"
+                                            title={t.customizeReport}
+                                        >
+                                            <Settings2 className="w-3 h-3" />
+                                        </Button>
+                                    </Link>
+
                                     <Button
                                         variant="outline"
                                         size="sm"
                                         className="rounded-xl text-xs gap-1 h-7"
-                                        onClick={() => handleDownloadReport(frame)}
+                                        onClick={() => handleDownloadReport(frame, 'report')}
                                     >
                                         <Download className="w-3 h-3" />
                                         {t.downloadReport}

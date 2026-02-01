@@ -17,6 +17,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
 import SimulationModal, { SimulationData } from '@/components/simulation-modal';
 import SettingsModal from '@/components/settings-modal';
 
@@ -145,6 +146,9 @@ export default function Home() {
   // Map View State (Zoom & Pan)
   const [viewState, setViewState] = useState({ zoom: 1, offsetX: 0, offsetY: 0, isDragging: false });
   const lastMousePos = useRef<{ x: number, y: number } | null>(null);
+
+  // Overlay transparency (0-1)
+  const [overlayOpacity, setOverlayOpacity] = useState(0.65);
 
   const t = getTranslations(locale);
   const isArabic = locale === 'ar';
@@ -369,7 +373,7 @@ export default function Home() {
         // Or calculate 4 corners? Simple approx for speed:
 
         ctx.fillStyle = ZONE_COLORS[point.color];
-        ctx.globalAlpha = 0.65;
+        ctx.globalAlpha = overlayOpacity;
         // Adjust y to be top-left of cell? Visibility points are usually centers.
         ctx.fillRect(x - stepW / 2, y - stepH / 2, stepW + 0.5, stepH + 0.5); // +0.5 to avoid gaps
       }
@@ -424,7 +428,7 @@ export default function Home() {
 
     ctx.restore(); // Restore context for next frame
 
-  }, [worldData, visibilityPoints, resolution, selectedLocation, darkMode, projectPoint, maxLat, viewState]);
+  }, [worldData, visibilityPoints, resolution, selectedLocation, darkMode, projectPoint, maxLat, viewState, overlayOpacity]);
 
   useEffect(() => {
     drawMap();
@@ -648,11 +652,11 @@ export default function Home() {
           </div>
         )}
 
-        {/* Tap to select */}
+        {/* Tap to select - Positioned at top center to avoid clash with legend */}
         {!selectedLocation && !isCalculating && !tapMessageDismissed && (
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-auto">
-            <div className="bg-card/90 backdrop-blur-sm border rounded-2xl px-3 py-2 text-center flex items-center gap-2 text-sm shadow-lg">
-              <MapPin className="w-4 h-4 text-primary shrink-0" />
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 pointer-events-auto z-20">
+            <div className="bg-card/90 backdrop-blur-sm border rounded-2xl px-3 py-2 text-center flex items-center gap-2 text-xs md:text-sm shadow-lg">
+              <MapPin className="w-3 h-3 md:w-4 md:h-4 text-primary shrink-0" />
               <span>{t.tapToSelect}</span>
               <button onClick={(e) => { e.stopPropagation(); setTapMessageDismissed(true); }} className="ml-1 hover:bg-muted rounded p-0.5">
                 <X className="w-3 h-3" />
@@ -833,6 +837,24 @@ export default function Home() {
                   <SelectContent className="rounded-2xl">{LAT_COVERAGE.map((c) => <SelectItem key={c.value} value={c.value} className="rounded-xl text-base justify-center text-center">{c.label}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
+
+              {/* Overlay Transparency */}
+              {visibilityPoints.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-muted-foreground pl-1">{t.overlayOpacity || 'Overlay Opacity'}</label>
+                    <span className="text-xs text-muted-foreground">{Math.round(overlayOpacity * 100)}%</span>
+                  </div>
+                  <Slider
+                    value={[overlayOpacity]}
+                    onValueChange={([v]) => setOverlayOpacity(v)}
+                    min={0.1}
+                    max={1}
+                    step={0.05}
+                    className="py-2"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Calculate & Map Download Actions */}
